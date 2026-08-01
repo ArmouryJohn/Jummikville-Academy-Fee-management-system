@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jummikville Academy — Fee Management</title>
+
+    <!--
+      DEPENDENCIES (all via CDN — no build step):
+      - Tailwind CSS : styling. The config block below sets our calm brand palette.
+      - Alpine.js    : lightweight interactivity (the x-data / @click you see below).
+      - Chart.js     : the paid/unpaid doughnut on the dashboard.
+      - Inter font   : clean, trustworthy typeface suited to handling money.
+    -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              // A calm, trustworthy teal/slate palette — not flashy.
+              brand: {
+                50: "#f0fdfa", 100: "#ccfbf1", 500: "#0d9488",
+                600: "#0f766e", 700: "#115e59", 900: "#134e4a",
+              },
+            },
+            fontFamily: {
+              sans: ["Inter", "system-ui", "sans-serif"],
+            },
+          },
+        },
+      };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!--
+      IMPORTANT: app.js must load BEFORE Alpine. Alpine's CDN build starts as
+      soon as it loads (the document is already "interactive" for deferred
+      scripts), firing its `alpine:init` event immediately. app.js registers our
+      screens and store on that event, so it has to be parsed first — otherwise
+      Alpine starts with nothing registered and hides every section (blank page).
+    -->
+    <script defer src="/app.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+
+    <style>
+      [x-cloak] { display: none !important; }
+      body { font-family: "Inter", system-ui, sans-serif; }
+      /* Subtle scrollbar for the drawer */
+      .thin-scroll::-webkit-scrollbar { width: 6px; }
+      .thin-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    </style>
+  </head>
+
+  <body class="h-full bg-slate-50 text-slate-800 antialiased" x-data>
+    <!-- =========================================================== -->
+    <!-- ================= AUTH GATE =============================== -->
+    <!-- =========================================================== -->
+    <!--
+      Everything below is gated on $store.auth.status:
+      - 'checking' → brief spinner while GET /auth/me is in flight (avoids a
+                     flash of the login form for already-logged-in users)
+      - 'out'      → the login screen
+      - 'in'       → the full app (header + main)
+      x-cloak keeps all of this hidden until Alpine initialises.
+    -->
+
+    <!-- Initial auth check: a calm centered spinner -->
+    <div x-cloak x-show="$store.auth.status === 'checking'"
+         class="flex min-h-screen items-center justify-center">
+      <svg class="h-8 w-8 animate-spin text-brand-600" viewBox="0 0 24 24" fill="none">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+      </svg>
+    </div>
+
+    <!-- ================= LOGIN SCREEN ================= -->
+    <div x-cloak x-show="$store.auth.status === 'out'"
+         class="flex min-h-screen items-center justify-center px-4">
+      <div class="w-full max-w-sm" x-data="loginForm()">
+        <div class="mb-6 flex flex-col items-center text-center">
+          <div class="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-lg font-bold text-white">
+            J
+          </div>
+          <h1 class="text-lg font-semibold text-slate-900">Jummikville Academy</h1>
+          <p class="text-sm text-slate-500">Sign in to the fee management dashboard.</p>
+        </div>
+
+        <form @submit.prevent="submit()"
+              class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="space-y-4">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Email</label>
+              <input x-model="email" type="email" autocomplete="username" autofocus
+                placeholder="you@jummikville.sch"
+                class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Password</label>
+              <input x-model="password" type="password" autocomplete="current-password"
+                placeholder="••••••••"
+                class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+            </div>
+
+            <p x-show="error" x-cloak x-text="error"
+               class="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700"></p>
+
+            <button type="submit" :disabled="submitting"
+              class="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-50">
+              <span x-show="!submitting">Sign in</span>
+              <span x-show="submitting" x-cloak>Signing in…</span>
+            </button>
+          </div>
+        </form>
+        <p class="mt-4 text-center text-xs text-slate-400">Powered by CAR Hub</p>
+      </div>
+    </div>
+
+    <!-- =========================================================== -->
+    <!-- ================= APP (authenticated only) ================ -->
+    <!-- =========================================================== -->
+    <template x-if="$store.auth.status === 'in'">
+    <div>
+    <!-- ================= TOP BAR ================= -->
+    <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
+      <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+        <div class="flex items-center gap-3">
+          <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white font-bold">
+            J
+          </div>
+          <div>
+            <p class="text-sm font-semibold leading-tight">Jummikville Academy</p>
+            <p class="text-xs text-slate-500 leading-tight">Fee Management</p>
+          </div>
+        </div>
+
+        <!-- Desktop nav -->
+        <nav class="hidden items-center gap-1 sm:flex">
+          <template x-for="tab in [
+              {id:'dashboard', label:'Dashboard'},
+              {id:'parents', label:'Parents'},
+              {id:'setup', label:'Setup'},
+              {id:'activity', label:'Activity'}
+            ]" :key="tab.id">
+            <button
+              @click="$store.app.go(tab.id)"
+              :class="$store.app.screen === tab.id
+                ? 'bg-brand-50 text-brand-700'
+                : 'text-slate-600 hover:bg-slate-100'"
+              class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
+              x-text="tab.label"></button>
+          </template>
+          <!-- Divider + who's-logged-in + logout -->
+          <div class="ml-2 flex items-center gap-2 border-l border-slate-200 pl-3">
+            <span class="hidden text-xs text-slate-500 md:inline" x-text="$store.auth.user?.email"></span>
+            <button @click="$store.auth.logout()"
+              class="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100">
+              Sign out
+            </button>
+          </div>
+        </nav>
+      </div>
+
+      <!-- Mobile nav -->
+      <nav class="border-t border-slate-100 sm:hidden">
+        <div class="flex">
+          <template x-for="tab in [
+              {id:'dashboard', label:'Dashboard'},
+              {id:'parents', label:'Parents'},
+              {id:'setup', label:'Setup'},
+              {id:'activity', label:'Activity'}
+            ]" :key="tab.id">
+            <button
+              @click="$store.app.go(tab.id)"
+              :class="$store.app.screen === tab.id
+                ? 'text-brand-700 border-brand-600'
+                : 'text-slate-500 border-transparent'"
+              class="flex-1 border-b-2 py-2.5 text-sm font-medium transition"
+              x-text="tab.label"></button>
+          </template>
+        </div>
+        <!-- Who's logged in + logout (mobile) -->
+        <div class="flex items-center justify-between border-t border-slate-100 px-4 py-2">
+          <span class="text-xs text-slate-500" x-text="$store.auth.user?.email"></span>
+          <button @click="$store.auth.logout()"
+            class="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
+            Sign out
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main class="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+      <!-- ========================================================= -->
+      <!-- ================= DASHBOARD SCREEN ====================== -->
+      <!-- ========================================================= -->
+      <section x-show="$store.app.screen === 'dashboard'" x-data="dashboard()">
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 class="text-xl font-semibold text-slate-900">Overview</h1>
+            <p class="text-sm text-slate-500">A calm snapshot of fee collection.</p>
+          </div>
+          <button
+            @click="sendReminders()"
+            :disabled="sending || loading"
+            class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-50">
+            <span x-show="!sending">📩 Send Reminders Now</span>
+            <span x-show="sending" x-cloak class="flex items-center gap-2">
+              <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+              </svg>
+              Sending…
+            </span>
+          </button>
+        </div>
+
+        <!-- Section switcher: whole-school vs one section. Reloads the numbers. -->
+        <div class="mb-6 inline-flex rounded-xl bg-slate-100 p-1 text-sm">
+          <template x-for="opt in [
+              { id: 'all', label: 'Whole School' },
+              { id: 'Nursery', label: 'Nursery' },
+              { id: 'Primary', label: 'Primary' },
+              { id: 'Secondary', label: 'Secondary' },
+            ]" :key="opt.id">
+            <button @click="switchSection(opt.id)"
+              :disabled="loading"
+              :class="section === opt.id ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500'"
+              class="rounded-lg px-4 py-1.5 font-medium transition disabled:opacity-50"
+              x-text="opt.label"></button>
+          </template>
+        </div>
+
+        <!-- Loading skeleton -->
+        <div x-show="loading" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <template x-for="i in 4" :key="i">
+            <div class="h-28 animate-pulse rounded-2xl bg-slate-200/60"></div>
+          </template>
+        </div>
+
+        <template x-if="!loading && summary">
+          <div>
+            <!-- The four headline numbers the school asked for. -->
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm text-slate-500">Total Fee</p>
+                <p class="mt-2 text-2xl font-bold text-slate-900" x-text="summary.total_expected_display"></p>
+                <p class="mt-1 text-xs text-slate-400">
+                  <span x-text="summary.total_students"></span> student<span x-show="summary.total_students !== 1">s</span>
+                </p>
+              </div>
+              <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm text-slate-500">Total Fee Collected</p>
+                <p class="mt-2 text-2xl font-bold text-emerald-600" x-text="summary.total_collected_display"></p>
+              </div>
+              <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm text-slate-500">Total Fee Remaining</p>
+                <p class="mt-2 text-2xl font-bold text-rose-600" x-text="summary.total_remaining_display"></p>
+              </div>
+              <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm text-slate-500">Total Overpaid</p>
+                <p class="mt-2 text-2xl font-bold text-sky-600" x-text="summary.total_overpaid_display"></p>
+                <p class="mt-1 text-xs text-slate-400">Credit to return to parents</p>
+              </div>
+            </div>
+
+            <!-- Chart + collection rate + mini feed -->
+            <div class="mt-6 grid gap-4 lg:grid-cols-3">
+              <!-- Chart -->
+              <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-1">
+                <p class="mb-1 text-sm font-medium text-slate-700">Payment status</p>
+                <p class="mb-3 text-xs text-slate-400"
+                   x-text="section === 'all' ? 'Across all students' : section + ' section'"></p>
+                <div class="relative mx-auto h-56">
+                  <canvas x-ref="paidChart"></canvas>
+                </div>
+              </div>
+
+              <!-- Collection progress + recent activity -->
+              <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+                <div class="mb-4">
+                  <div class="mb-1 flex items-center justify-between">
+                    <p class="text-sm font-medium text-slate-700">Collection rate</p>
+                    <p class="text-sm font-semibold text-brand-700" x-text="summary.collection_rate + '%'"></p>
+                  </div>
+                  <div class="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div class="h-full rounded-full bg-brand-500 transition-all"
+                         :style="`width: ${summary.collection_rate}%`"></div>
+                  </div>
+                  <p class="mt-1 text-xs text-slate-400">
+                    <span x-text="summary.total_collected_display"></span> of
+                    <span x-text="summary.total_expected_display"></span> collected
+                  </p>
+                </div>
+
+                <div class="border-t border-slate-100 pt-4">
+                  <div class="mb-3 flex items-center justify-between">
+                    <p class="text-sm font-medium text-slate-700">Recent activity</p>
+                    <button @click="$store.app.go('activity')"
+                            class="text-xs font-medium text-brand-600 hover:underline">View all</button>
+                  </div>
+                  <p x-show="recent.length === 0" class="py-4 text-center text-sm text-slate-400">
+                    No activity yet. Record a payment or send reminders to get started.
+                  </p>
+                  <ul class="space-y-3">
+                    <template x-for="item in recent" :key="item.id">
+                      <li class="flex items-start gap-3">
+                        <span class="mt-0.5 text-base" x-text="activityIcon(item.action)"></span>
+                        <div class="min-w-0">
+                          <p class="text-sm text-slate-700" x-text="item.description"></p>
+                          <p class="text-xs text-slate-400" x-text="timeAgo(item.created_at)"></p>
+                        </div>
+                      </li>
+                    </template>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Per-category breakdown: how each fee category is collecting,
+                 school-wide. Only categories that have fee types assigned show. -->
+            <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p class="mb-1 text-sm font-medium text-slate-700">Collection by category</p>
+              <p class="mb-4 text-xs text-slate-400">Every fee category, tracked school-wide.</p>
+
+              <p x-show="!summary.categories || summary.categories.length === 0"
+                 class="py-4 text-center text-sm text-slate-400">
+                No fee categories with assigned fees yet. Add fee types on the Setup screen.
+              </p>
+
+              <div x-show="summary.categories && summary.categories.length" class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead>
+                    <tr class="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
+                      <th class="px-3 py-2">Category</th>
+                      <th class="px-3 py-2 text-right">Expected</th>
+                      <th class="px-3 py-2 text-right">Collected</th>
+                      <th class="px-3 py-2 text-right">Remaining</th>
+                      <th class="px-3 py-2 text-right">Overpaid</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-50">
+                    <template x-for="c in summary.categories" :key="c.category_id">
+                      <tr>
+                        <td class="px-3 py-2.5 font-medium text-slate-800" x-text="c.category_name"></td>
+                        <td class="px-3 py-2.5 text-right text-slate-700" x-text="c.total_expected_display"></td>
+                        <td class="px-3 py-2.5 text-right font-medium text-emerald-600" x-text="c.total_collected_display"></td>
+                        <td class="px-3 py-2.5 text-right text-rose-600" x-text="c.total_remaining_display"></td>
+                        <td class="px-3 py-2.5 text-right text-sky-600" x-text="c.total_overpaid_display"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </template>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- ================= PARENTS SCREEN ======================== -->
+      <!-- ========================================================= -->
+      <section x-show="$store.app.screen === 'parents'" x-data="parents()">
+        <div class="mb-5 flex items-start justify-between">
+          <div>
+            <h1 class="text-xl font-semibold text-slate-900">Parents &amp; Students</h1>
+            <p class="text-sm text-slate-500">Search, check balances, and record payments.</p>
+          </div>
+          <button @click="openAdd()"
+            class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
+            <span class="text-base leading-none">＋</span> Add student
+          </button>
+        </div>
+
+        <!-- Search + filter -->
+        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div class="relative flex-1">
+            <input x-model="search" type="text" placeholder="Search by student, parent, or phone…"
+              class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+            <span class="pointer-events-none absolute left-3 top-2.5 text-slate-400">🔍</span>
+          </div>
+          <div class="flex gap-1 rounded-xl bg-slate-100 p-1">
+            <template x-for="opt in [
+                {id:'all', label:'All'},
+                {id:'unpaid', label:'Unpaid'},
+                {id:'partial', label:'Partial'},
+                {id:'paid', label:'Paid'},
+                {id:'overpaid', label:'Overpaid'},
+                {id:'no_fee', label:'No fee set'}
+              ]" :key="opt.id">
+              <button @click="statusFilter = opt.id"
+                :class="statusFilter === opt.id ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500'"
+                class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
+                x-text="opt.label"></button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Section filter -->
+        <div class="mb-4 flex gap-1 rounded-xl bg-slate-100 p-1 sm:inline-flex">
+          <template x-for="opt in [
+              {id:'all', label:'All sections'},
+              {id:'Nursery', label:'Nursery'},
+              {id:'Primary', label:'Primary'},
+              {id:'Secondary', label:'Secondary'}
+            ]" :key="opt.id">
+            <button @click="sectionFilter = opt.id"
+              :class="sectionFilter === opt.id ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500'"
+              class="flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition sm:flex-none"
+              x-text="opt.label"></button>
+          </template>
+        </div>
+
+        <!-- Loading -->
+        <div x-show="loading" class="space-y-2">
+          <template x-for="i in 5" :key="i">
+            <div class="h-16 animate-pulse rounded-xl bg-slate-200/60"></div>
+          </template>
+        </div>
+
+        <!-- Table (desktop) -->
+        <div x-show="!loading" class="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:block">
+          <table class="min-w-full divide-y divide-slate-100">
+            <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th class="px-5 py-3">Student / Parent</th>
+                <th class="px-5 py-3">Section</th>
+                <th class="px-5 py-3">Phone</th>
+                <th class="px-5 py-3 text-right">Total</th>
+                <th class="px-5 py-3 text-right">Paid</th>
+                <th class="px-5 py-3 text-right">Balance</th>
+                <th class="px-5 py-3">Status</th>
+                <th class="px-5 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 text-sm">
+              <template x-for="s in filtered" :key="s.student_id">
+                <tr class="hover:bg-slate-50/70">
+                  <td class="px-5 py-3 cursor-pointer" @click="openDetail(s.student_id)">
+                    <p class="font-medium text-slate-900" x-text="s.student_name"></p>
+                    <p class="text-xs text-slate-500">
+                      <span x-text="s.parent_name"></span>
+                      <span x-show="s.class_name" x-text="' · ' + s.class_name"></span>
+                    </p>
+                  </td>
+                  <td class="px-5 py-3 text-slate-600" x-text="s.section"></td>
+                  <td class="px-5 py-3 text-slate-600" x-text="s.parent_phone"></td>
+                  <td class="px-5 py-3 text-right text-slate-600" x-text="s.total_fees_display"></td>
+                  <td class="px-5 py-3 text-right text-emerald-600" x-text="s.amount_paid_display"></td>
+                  <td class="px-5 py-3 text-right font-medium">
+                    <!-- Overpaid → show the credit clearly. Otherwise show what's
+                         left to complete (never a confusing negative number). -->
+                    <template x-if="s.overpaid_kobo > 0">
+                      <span class="text-sky-600" x-text="'Overpaid by ' + s.overpaid_display"></span>
+                    </template>
+                    <template x-if="s.overpaid_kobo === 0">
+                      <span class="text-slate-900" x-text="s.remaining_display"></span>
+                    </template>
+                  </td>
+                  <td class="px-5 py-3">
+                    <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset"
+                          :class="statusBadge(s.status).cls" x-text="statusBadge(s.status).label"></span>
+                  </td>
+                  <td class="px-5 py-3 text-right">
+                    <button @click="openPayment(s)"
+                      x-show="s.remaining_kobo > 0"
+                      class="rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100">
+                      Record payment
+                    </button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="filtered.length === 0">
+                <td colspan="8" class="px-5 py-10 text-center text-sm text-slate-400">No matching students.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Cards (mobile) -->
+        <div x-show="!loading" class="space-y-3 sm:hidden">
+          <template x-for="s in filtered" :key="s.student_id">
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div class="flex items-start justify-between" @click="openDetail(s.student_id)">
+                <div>
+                  <p class="font-medium text-slate-900" x-text="s.student_name"></p>
+                  <p class="text-xs text-slate-500" x-text="s.section + ' · ' + s.parent_name + (s.class_name ? ' · ' + s.class_name : '')"></p>
+                  <p class="mt-0.5 text-xs text-slate-400" x-text="s.parent_phone"></p>
+                </div>
+                <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset"
+                      :class="statusBadge(s.status).cls" x-text="statusBadge(s.status).label"></span>
+              </div>
+              <div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+                <div>
+                  <template x-if="s.overpaid_kobo > 0">
+                    <div>
+                      <p class="text-xs text-slate-400">Overpaid</p>
+                      <p class="font-semibold text-sky-600" x-text="s.overpaid_display"></p>
+                    </div>
+                  </template>
+                  <template x-if="s.overpaid_kobo === 0">
+                    <div>
+                      <p class="text-xs text-slate-400">Remaining</p>
+                      <p class="font-semibold text-slate-900" x-text="s.remaining_display"></p>
+                    </div>
+                  </template>
+                </div>
+                <button @click="openPayment(s)" x-show="s.remaining_kobo > 0"
+                  class="rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700">
+                  Record payment
+                </button>
+              </div>
+            </div>
+          </template>
+          <p x-show="filtered.length === 0" class="py-10 text-center text-sm text-slate-400">No matching students.</p>
+        </div>
+
+        <!-- ============ DETAIL DRAWER ============ -->
+        <div x-show="drawerOpen" x-cloak class="fixed inset-0 z-40" @keydown.escape.window="closeDetail()">
+          <div class="absolute inset-0 bg-slate-900/30" @click="closeDetail()"></div>
+          <div class="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-white shadow-xl thin-scroll"
+               x-transition:enter="transition ease-out duration-200"
+               x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0">
+            <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <h2 class="text-base font-semibold text-slate-900">Student record</h2>
+              <button @click="closeDetail()" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+
+            <div x-show="detailLoading" class="p-6 text-center text-sm text-slate-400">Loading…</div>
+
+            <div x-show="!detailLoading && detail" class="flex-1 overflow-y-auto px-5 py-4 thin-scroll">
+              <!-- Header -->
+              <div class="rounded-xl bg-slate-50 p-4">
+                <p class="text-lg font-semibold text-slate-900" x-text="detail?.student_name"></p>
+                <p class="text-sm text-slate-500"
+                   x-text="(detail?.section || '') + ' · ' + detail?.parent_name + (detail?.class_name ? ' · ' + detail?.class_name : '')"></p>
+                <p class="text-sm text-slate-500" x-text="detail?.parent_phone"></p>
+                <div class="mt-3 grid grid-cols-3 gap-2 text-center">
+                  <div class="rounded-lg bg-white p-2">
+                    <p class="text-xs text-slate-400">Total</p>
+                    <p class="text-sm font-semibold" x-text="detail?.total_fees_display"></p>
+                  </div>
+                  <div class="rounded-lg bg-white p-2">
+                    <p class="text-xs text-slate-400">Paid</p>
+                    <p class="text-sm font-semibold text-emerald-600" x-text="detail?.amount_paid_display"></p>
+                  </div>
+                  <div class="rounded-lg bg-white p-2">
+                    <template x-if="detail && detail.overpaid_kobo > 0">
+                      <div>
+                        <p class="text-xs text-slate-400">Overpaid</p>
+                        <p class="text-sm font-semibold text-sky-600" x-text="detail?.overpaid_display"></p>
+                      </div>
+                    </template>
+                    <template x-if="!detail || detail.overpaid_kobo === 0">
+                      <div>
+                        <p class="text-xs text-slate-400">Remaining</p>
+                        <p class="text-sm font-semibold text-rose-600" x-text="detail?.remaining_display"></p>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Drawer actions -->
+              <div class="mt-4 grid grid-cols-3 gap-2">
+                <button @click="openEdit()"
+                  class="rounded-xl border border-slate-200 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                  ✏️ Edit
+                </button>
+                <button @click="openAssign()"
+                  class="rounded-xl border border-slate-200 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                  ＋ Assign fee
+                </button>
+                <button @click="remindOne(detail.student_id)" :disabled="remindingId === detail?.student_id"
+                  class="rounded-xl border border-slate-200 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                  <span x-show="remindingId !== detail?.student_id">📩 Remind</span>
+                  <span x-show="remindingId === detail?.student_id" x-cloak>Sending…</span>
+                </button>
+              </div>
+
+              <!-- Fee lines -->
+              <div class="mt-5">
+                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Fees</p>
+                <ul class="space-y-2">
+                  <template x-for="f in detail?.fee_records || []" :key="f.fee_record_id">
+                    <li class="flex items-center justify-between rounded-xl border border-slate-100 p-3">
+                      <div>
+                        <p class="text-sm font-medium text-slate-800" x-text="f.fee_name"></p>
+                        <p class="text-xs text-slate-400" x-text="f.fee_term"></p>
+                      </div>
+                      <div class="text-right">
+                        <template x-if="f.overpaid_kobo > 0">
+                          <p class="text-sm font-semibold text-sky-600" x-text="'Overpaid ' + f.overpaid_display"></p>
+                        </template>
+                        <template x-if="f.overpaid_kobo === 0">
+                          <p class="text-sm font-semibold text-slate-900" x-text="f.remaining_display + ' left'"></p>
+                        </template>
+                        <span class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset"
+                              :class="statusBadge(f.status).cls" x-text="statusBadge(f.status).label"></span>
+                      </div>
+                    </li>
+                  </template>
+                </ul>
+              </div>
+
+              <!-- Message history -->
+              <div class="mt-5">
+                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Message history</p>
+                <p x-show="(detail?.messages || []).length === 0" class="text-sm text-slate-400">
+                  No messages sent yet.
+                </p>
+                <ul class="space-y-3">
+                  <template x-for="(m, i) in detail?.messages || []" :key="i">
+                    <li class="flex items-start gap-3">
+                      <span class="mt-0.5" x-text="activityIcon(m.action)"></span>
+                      <div>
+                        <p class="text-sm text-slate-700" x-text="m.description"></p>
+                        <p class="text-xs text-slate-400" x-text="formatDateTime(m.created_at)"></p>
+                      </div>
+                    </li>
+                  </template>
+                </ul>
+              </div>
+
+              <!-- Payment history -->
+              <div class="mt-5">
+                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Payments</p>
+                <p x-show="(detail?.payments || []).length === 0" class="text-sm text-slate-400">
+                  No payments recorded yet.
+                </p>
+                <ul class="space-y-2">
+                  <template x-for="(p, i) in detail?.payments || []" :key="i">
+                    <li class="flex items-center justify-between rounded-xl border border-slate-100 p-3">
+                      <div>
+                        <p class="text-sm font-medium text-slate-800" x-text="p.amount_display"></p>
+                        <p class="text-xs text-slate-400">
+                          <span class="uppercase" x-text="p.method"></span>
+                          <span x-show="p.recorded_by" x-text="' · by ' + p.recorded_by"></span>
+                        </p>
+                      </div>
+                      <p class="text-xs text-slate-400" x-text="formatDateTime(p.paid_at)"></p>
+                    </li>
+                  </template>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ MANUAL PAYMENT MODAL ============ -->
+        <div x-show="payOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+             @keydown.escape.window="closePayment()">
+          <div class="absolute inset-0 bg-slate-900/40" @click="closePayment()"></div>
+          <div class="relative w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+               x-transition:enter="transition ease-out duration-200"
+               x-transition:enter-start="translate-y-8 opacity-0" x-transition:enter-end="translate-y-0 opacity-100">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-slate-900">Record a payment</h2>
+              <button @click="closePayment()" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+            <p class="mb-4 text-sm text-slate-500">
+              For <span class="font-medium text-slate-700" x-text="payForm.student_name"></span>.
+              This updates the balance and sends a WhatsApp confirmation automatically.
+            </p>
+
+            <div class="space-y-4">
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Fee</label>
+                <select x-model="payForm.fee_record_id"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                  <option value="">Select a fee…</option>
+                  <template x-for="f in payFeeLines" :key="f.fee_record_id">
+                    <option :value="f.fee_record_id"
+                      x-text="`${f.fee_name} (${f.fee_term}) — ${f.remaining_display} left`"></option>
+                  </template>
+                </select>
+              </div>
+
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Amount received (₦)</label>
+                <input x-model="payForm.amount_naira" type="number" min="0" step="0.01" placeholder="e.g. 25000"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Method</label>
+                <div class="flex gap-2">
+                  <template x-for="m in ['cash','pos','transfer']" :key="m">
+                    <button type="button" @click="payForm.method = m"
+                      :class="payForm.method === m ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'"
+                      class="flex-1 rounded-xl py-2 text-sm font-medium capitalize transition" x-text="m"></button>
+                  </template>
+                </div>
+              </div>
+
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Recorded by</label>
+                <input x-model="payForm.recorded_by" type="text" placeholder="Your name"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Note (optional)</label>
+                <input x-model="payForm.note" type="text" placeholder="e.g. Paid at the school office"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+            </div>
+
+            <div class="mt-6 flex gap-3">
+              <button @click="closePayment()"
+                class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button @click="submitPayment()" :disabled="paySubmitting"
+                class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                <span x-show="!paySubmitting">Confirm payment</span>
+                <span x-show="paySubmitting" x-cloak>Saving…</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ ADD STUDENT MODAL ============ -->
+        <div x-show="addOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+             @keydown.escape.window="closeAdd()">
+          <div class="absolute inset-0 bg-slate-900/40" @click="closeAdd()"></div>
+          <div class="relative w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+               x-transition:enter="transition ease-out duration-200"
+               x-transition:enter-start="translate-y-8 opacity-0" x-transition:enter-end="translate-y-0 opacity-100">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-slate-900">Add a student</h2>
+              <button @click="closeAdd()" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+            <p class="mb-4 text-sm text-slate-500">
+              Register a student and their parent's contact. You can assign fees to them afterwards.
+            </p>
+
+            <div class="space-y-4">
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Student name</label>
+                <input x-model="addForm.student_name" type="text" placeholder="e.g. Ada Okeke"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Section</label>
+                <div class="flex gap-2">
+                  <template x-for="sec in ['Nursery','Primary','Secondary']" :key="sec">
+                    <button type="button" @click="addForm.section = sec"
+                      :class="addForm.section === sec ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'"
+                      class="flex-1 rounded-xl py-2 text-sm font-medium transition" x-text="sec"></button>
+                  </template>
+                </div>
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Class (optional)</label>
+                <input x-model="addForm.class_name" type="text" placeholder="e.g. JSS 2"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Parent name</label>
+                <input x-model="addForm.parent_name" type="text" placeholder="e.g. Mrs. Okeke"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Parent phone</label>
+                <input x-model="addForm.parent_phone" type="tel" placeholder="e.g. 0803 123 4567"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+                <p class="mt-1 text-xs text-slate-400">Nigerian numbers are converted to WhatsApp format automatically.</p>
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Parent email (optional)</label>
+                <input x-model="addForm.parent_email" type="email" placeholder="e.g. parent@email.com"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+
+              <!-- Fees are required: a student must be created with a fee set,
+                   so they never land in the ambiguous "No fee set" state by accident. -->
+              <div class="border-t border-slate-100 pt-4">
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-slate-700">Fee type</label>
+                  <select x-model="addForm.fee_type_id" @change="
+                      const t = feeTypes.find(x => x.id == addForm.fee_type_id);
+                      if (t && !addForm.amount_naira) addForm.amount_naira = t.amount_kobo / 100;
+                    "
+                    class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                    <option value="">Select a fee type…</option>
+                    <template x-for="t in feeTypes" :key="t.id">
+                      <option :value="t.id" x-text="`${t.name} · ${t.section} — ${t.term}`"></option>
+                    </template>
+                  </select>
+                  <p x-show="feeTypes.length === 0" class="mt-1 text-xs text-amber-600">
+                    No fee types yet. Create one on the Setup screen first.
+                  </p>
+                </div>
+                <div class="mt-4">
+                  <label class="mb-1 block text-sm font-medium text-slate-700">Total fees (₦)</label>
+                  <input x-model="addForm.amount_naira" type="number" min="0" step="0.01" placeholder="e.g. 75000"
+                    class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+                  <p class="mt-1 text-xs text-slate-400">Picking a fee type fills in its default — adjust if this student pays a different amount.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-6 flex gap-3">
+              <button @click="closeAdd()"
+                class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button @click="submitAdd()" :disabled="addSubmitting"
+                class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                <span x-show="!addSubmitting">Add student</span>
+                <span x-show="addSubmitting" x-cloak>Saving…</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ EDIT STUDENT MODAL ============ -->
+        <div x-show="editOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+             @keydown.escape.window="closeEdit()">
+          <div class="absolute inset-0 bg-slate-900/40" @click="closeEdit()"></div>
+          <div class="relative w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+               x-transition:enter="transition ease-out duration-200"
+               x-transition:enter-start="translate-y-8 opacity-0" x-transition:enter-end="translate-y-0 opacity-100">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-slate-900">Edit student</h2>
+              <button @click="closeEdit()" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Student name</label>
+                <input x-model="editForm.student_name" type="text"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Section</label>
+                <div class="flex gap-2">
+                  <template x-for="sec in ['Nursery','Primary','Secondary']" :key="sec">
+                    <button type="button" @click="editForm.section = sec"
+                      :class="editForm.section === sec ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'"
+                      class="flex-1 rounded-xl py-2 text-sm font-medium transition" x-text="sec"></button>
+                  </template>
+                </div>
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Class</label>
+                <input x-model="editForm.class_name" type="text" placeholder="e.g. JSS 2"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Parent name</label>
+                <input x-model="editForm.parent_name" type="text"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Parent phone</label>
+                <input x-model="editForm.parent_phone" type="tel"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Parent email</label>
+                <input x-model="editForm.parent_email" type="email"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+            </div>
+
+            <div class="mt-6 flex gap-3">
+              <button @click="closeEdit()"
+                class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button @click="submitEdit()" :disabled="editSubmitting"
+                class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                <span x-show="!editSubmitting">Save changes</span>
+                <span x-show="editSubmitting" x-cloak>Saving…</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ ASSIGN FEE MODAL ============ -->
+        <div x-show="assignOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+             @keydown.escape.window="closeAssign()">
+          <div class="absolute inset-0 bg-slate-900/40" @click="closeAssign()"></div>
+          <div class="relative w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+               x-transition:enter="transition ease-out duration-200"
+               x-transition:enter-start="translate-y-8 opacity-0" x-transition:enter-end="translate-y-0 opacity-100">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-slate-900">Assign a fee</h2>
+              <button @click="closeAssign()" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+            <p class="mb-4 text-sm text-slate-500">
+              For <span class="font-medium text-slate-700" x-text="assignForm.student_name"></span>.
+              Pick a fee type — the default amount fills in, and you can adjust it.
+            </p>
+
+            <div class="space-y-4">
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Fee type</label>
+                <select x-model="assignForm.fee_type_id" @change="onAssignFeeTypeChange()"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                  <option value="">Select a fee type…</option>
+                  <template x-for="t in feeTypes" :key="t.id">
+                    <option :value="t.id" x-text="`${t.name} · ${t.section} — ${t.term}`"></option>
+                  </template>
+                </select>
+                <p x-show="feeTypes.length === 0" class="mt-1 text-xs text-amber-600">
+                  No fee types yet. Create one on the Setup screen first.
+                </p>
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Amount for this student (₦)</label>
+                <input x-model="assignForm.amount_naira" type="number" min="0" step="0.01" placeholder="e.g. 75000"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+            </div>
+
+            <div class="mt-6 flex gap-3">
+              <button @click="closeAssign()"
+                class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button @click="submitAssign()" :disabled="assignSubmitting"
+                class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                <span x-show="!assignSubmitting">Assign fee</span>
+                <span x-show="assignSubmitting" x-cloak>Saving…</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- ================= SETUP SCREEN ========================== -->
+      <!-- ========================================================= -->
+      <!--
+        Setup has two parts:
+        1. FEE CATEGORIES — the permanent master list (Tuition, Textbook, …).
+           Staff can add more. Every fee type hangs off one of these.
+        2. FEE TYPES — a category + section + term + amount (e.g. "Tuition ·
+           Primary · Term 1 · ₦75,000"). Assigning one to a student happens on
+           the Parents screen.
+      -->
+      <section x-show="$store.app.screen === 'setup'" x-data="setup()">
+        <div class="mb-5">
+          <h1 class="text-xl font-semibold text-slate-900">Setup</h1>
+          <p class="text-sm text-slate-500">Manage fee categories and the fees your school charges each term.</p>
+        </div>
+
+        <!-- ============ FEE CATEGORIES ============ -->
+        <div class="mb-8">
+          <div class="mb-3 flex items-center justify-between">
+            <div>
+              <h2 class="text-base font-semibold text-slate-900">Fee categories</h2>
+              <p class="text-xs text-slate-500">The master list. Every fee type belongs to one category.</p>
+            </div>
+            <button @click="openCategory()"
+              class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
+              <span class="text-base leading-none">＋</span> Add category
+            </button>
+          </div>
+
+          <div x-show="catLoading" class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <template x-for="i in 4" :key="i">
+              <div class="h-12 animate-pulse rounded-xl bg-slate-200/60"></div>
+            </template>
+          </div>
+
+          <div x-show="!catLoading" class="flex flex-wrap gap-2">
+            <template x-for="c in categories" :key="c.id">
+              <span class="group inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm">
+                <span x-text="c.name"></span>
+                <button @click="deleteCategory(c)"
+                  class="text-slate-300 transition hover:text-rose-500"
+                  title="Delete category">✕</button>
+              </span>
+            </template>
+            <p x-show="categories.length === 0" class="text-sm text-slate-400">No categories yet.</p>
+          </div>
+        </div>
+
+        <!-- ============ FEE TYPES ============ -->
+        <div class="mb-3 flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-semibold text-slate-900">Fee types</h2>
+            <p class="text-xs text-slate-500">A category priced for a section and term.</p>
+          </div>
+          <button @click="openCreate()"
+            class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
+            <span class="text-base leading-none">＋</span> New fee type
+          </button>
+        </div>
+
+        <!-- Loading -->
+        <div x-show="loading" class="space-y-2">
+          <template x-for="i in 3" :key="i">
+            <div class="h-16 animate-pulse rounded-xl bg-slate-200/60"></div>
+          </template>
+        </div>
+
+        <!-- Empty state -->
+        <div x-show="!loading && feeTypes.length === 0"
+             class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <p class="text-sm text-slate-500">No fee types yet.</p>
+          <p class="mt-1 text-xs text-slate-400">
+            Create one (e.g. "Tuition · Primary · First Term"), then assign it to students from the Parents screen.
+          </p>
+          <button @click="openCreate()"
+            class="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
+            <span class="text-base leading-none">＋</span> Create your first fee type
+          </button>
+        </div>
+
+        <!-- Fee-type list -->
+        <div x-show="!loading && feeTypes.length > 0"
+             class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table class="min-w-full divide-y divide-slate-100">
+            <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th class="px-5 py-3">Category</th>
+                <th class="px-5 py-3">Section</th>
+                <th class="px-5 py-3">Term</th>
+                <th class="px-5 py-3 text-right">Default amount</th>
+                <th class="px-5 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 text-sm">
+              <template x-for="t in feeTypes" :key="t.id">
+                <tr class="hover:bg-slate-50/70">
+                  <td class="px-5 py-3 font-medium text-slate-900" x-text="t.name"></td>
+                  <td class="px-5 py-3">
+                    <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600"
+                          x-text="t.section"></span>
+                  </td>
+                  <td class="px-5 py-3 text-slate-600" x-text="t.term"></td>
+                  <td class="px-5 py-3 text-right font-medium text-slate-900" x-text="nairaFromKobo(t.amount_kobo)"></td>
+                  <td class="px-5 py-3 text-right">
+                    <button @click="deleteFeeType(t)"
+                      class="rounded-lg px-2 py-1 text-xs font-semibold text-slate-400 hover:bg-rose-50 hover:text-rose-600">
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ============ ADD CATEGORY MODAL ============ -->
+        <div x-show="categoryOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+             @keydown.escape.window="closeCategory()">
+          <div class="absolute inset-0 bg-slate-900/40" @click="closeCategory()"></div>
+          <div class="relative w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+               x-transition:enter="transition ease-out duration-200"
+               x-transition:enter-start="translate-y-8 opacity-0" x-transition:enter-end="translate-y-0 opacity-100">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-slate-900">Add a fee category</h2>
+              <button @click="closeCategory()" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+            <p class="mb-4 text-sm text-slate-500">
+              A category groups fees across the whole school (e.g. all Textbook money vs all Tuition money).
+            </p>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Category name</label>
+              <input x-model="categoryForm.name" type="text" placeholder="e.g. Uniform Fee"
+                @keydown.enter="submitCategory()"
+                class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+            </div>
+            <div class="mt-6 flex gap-3">
+              <button @click="closeCategory()"
+                class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button @click="submitCategory()" :disabled="categorySubmitting"
+                class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                <span x-show="!categorySubmitting">Add category</span>
+                <span x-show="categorySubmitting" x-cloak>Saving…</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ CREATE FEE TYPE MODAL ============ -->
+        <div x-show="createOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+             @keydown.escape.window="closeCreate()">
+          <div class="absolute inset-0 bg-slate-900/40" @click="closeCreate()"></div>
+          <div class="relative w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+               x-transition:enter="transition ease-out duration-200"
+               x-transition:enter-start="translate-y-8 opacity-0" x-transition:enter-end="translate-y-0 opacity-100">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-slate-900">New fee type</h2>
+              <button @click="closeCreate()" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+            <p class="mb-4 text-sm text-slate-500">
+              This is a template. The amount here is the default — you can adjust it per student when assigning.
+            </p>
+
+            <div class="space-y-4">
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Category</label>
+                <select x-model="createForm.category_id"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                  <option value="">Select a category…</option>
+                  <template x-for="c in categories" :key="c.id">
+                    <option :value="c.id" x-text="c.name"></option>
+                  </template>
+                </select>
+                <p x-show="categories.length === 0" class="mt-1 text-xs text-amber-600">
+                  No categories yet. Add one above first.
+                </p>
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Section</label>
+                <div class="flex gap-2">
+                  <template x-for="sec in ['Nursery','Primary','Secondary']" :key="sec">
+                    <button type="button" @click="createForm.section = sec"
+                      :class="createForm.section === sec ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'"
+                      class="flex-1 rounded-xl py-2 text-sm font-medium transition" x-text="sec"></button>
+                  </template>
+                </div>
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Term</label>
+                <input x-model="createForm.term" type="text" placeholder="e.g. First Term 2025/2026"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Default amount (₦)</label>
+                <input x-model="createForm.amount_naira" type="number" min="0" step="0.01" placeholder="e.g. 75000"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+            </div>
+
+            <div class="mt-6 flex gap-3">
+              <button @click="closeCreate()"
+                class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button @click="submitCreate()" :disabled="createSubmitting"
+                class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                <span x-show="!createSubmitting">Create fee type</span>
+                <span x-show="createSubmitting" x-cloak>Saving…</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- ================= ACTIVITY SCREEN ======================= -->
+      <!-- ========================================================= -->
+      <section x-show="$store.app.screen === 'activity'" x-data="activity()">
+        <div class="mb-5 flex items-center justify-between">
+          <div>
+            <h1 class="text-xl font-semibold text-slate-900">Activity</h1>
+            <p class="text-sm text-slate-500">What the system has been doing — reminders and confirmations.</p>
+          </div>
+          <button @click="load()" class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            Refresh
+          </button>
+        </div>
+
+        <div x-show="loading" class="space-y-2">
+          <template x-for="i in 6" :key="i">
+            <div class="h-14 animate-pulse rounded-xl bg-slate-200/60"></div>
+          </template>
+        </div>
+
+        <div x-show="!loading" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <p x-show="items.length === 0" class="p-10 text-center text-sm text-slate-400">
+            Nothing here yet. Record a payment or send reminders and it will appear here.
+          </p>
+          <ul class="divide-y divide-slate-50">
+            <template x-for="item in items" :key="item.id">
+              <li class="flex items-start gap-3 px-5 py-4">
+                <span class="mt-0.5 text-lg" x-text="activityIcon(item.action)"></span>
+                <div class="flex-1">
+                  <p class="text-sm text-slate-700" x-text="item.description"></p>
+                  <p class="text-xs text-slate-400" x-text="timeAgo(item.created_at) + ' · ' + formatDateTime(item.created_at)"></p>
+                </div>
+              </li>
+            </template>
+          </ul>
+        </div>
+      </section>
+    </main>
+    </div>
+    </template>
+    <!-- ================= END APP (authenticated only) ================ -->
+
+    <!-- ================= TOAST ================= -->
+    <!-- Outside the auth gate so session/idle notices show on the login screen too. -->
+    <div x-data x-show="$store.app.toast.show" x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+         class="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2">
+      <div :class="$store.app.toast.kind === 'error' ? 'bg-rose-600' : 'bg-slate-900'"
+           class="rounded-xl px-4 py-3 text-sm font-medium text-white shadow-lg">
+        <span x-text="$store.app.toast.message"></span>
+      </div>
+    </div>
+  </body>
+</html>
