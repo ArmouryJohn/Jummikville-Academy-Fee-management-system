@@ -21,6 +21,9 @@ env/
 *.db
 *.sqlite3
 
+# ---- Logs (may contain secrets — e.g. the printed admin password) ----
+*.log
+
 # ---- IDE ----
 .vscode/
 .idea/

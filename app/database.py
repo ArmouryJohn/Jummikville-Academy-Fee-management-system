@@ -23,17 +23,32 @@ from app.config import settings
 # --------------------------------------------------------------------------
 # Engine: the actual connection to the database
 # --------------------------------------------------------------------------
+# Railway (and other hosts) may hand us a URL starting with "postgres://",
+# but SQLAlchemy 2.0 only recognizes "postgresql://". Normalize it so the same
+# DATABASE_URL works whether the platform uses the old or new scheme.
+database_url = settings.database_url
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
 # check_same_thread=False is only needed for SQLite (it's single-threaded
 # by default, but FastAPI uses multiple threads). PostgreSQL doesn't need this.
 connect_args = {}
-if settings.database_url.startswith("sqlite"):
+engine_kwargs = {}
+if database_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
+else:
+    # On a managed Postgres, idle connections can be dropped by the server or a
+    # proxy. pool_pre_ping checks a connection is alive before using it (and
+    # transparently reconnects if not), which prevents "server closed the
+    # connection unexpectedly" errors after the app has been idle.
+    engine_kwargs["pool_pre_ping"] = True
 
 engine = create_engine(
-    settings.database_url,
+    database_url,
     connect_args=connect_args,
     # Echo SQL statements to console in development (helpful for learning)
     echo=(not settings.is_production),
+    **engine_kwargs,
 )
 
 # --------------------------------------------------------------------------
