@@ -31,8 +31,8 @@ class Student(Base):
     # Student info
     student_name: Mapped[str] = mapped_column(String(200), nullable=False)
     section: Mapped[str] = mapped_column(
-        String(20), nullable=False,
-        comment="'Nursery', 'Primary', or 'Secondary' — required; drives per-section dashboard stats"
+        String(50), nullable=False,
+        comment="'Preschool', 'Primary', or 'Smart Skills High School' — required; drives per-section dashboard stats"
     )
     class_name: Mapped[str | None] = mapped_column(
         String(50),

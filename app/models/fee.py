@@ -17,7 +17,7 @@ If amount_paid changes (via Paystack or cash), the balance updates automatically
 
 from datetime import datetime, timezone
 
-from sqlalchemy import String, DateTime, Integer, ForeignKey, event
+from sqlalchemy import String, DateTime, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -54,13 +54,17 @@ class FeeType(Base):
 
     # NEW: which school section this fee type applies to
     section: Mapped[str] = mapped_column(
-        String(20), nullable=False,
-        comment="'Nursery', 'Primary', or 'Secondary' — required so different sections can have different amounts"
+        String(50), nullable=False,
+        comment="'Preschool', 'Primary', or 'Smart Skills High School' — required so different sections can have different amounts"
     )
 
-    term: Mapped[str] = mapped_column(
-        String(100), nullable=False,
-        comment="e.g. 'Term 1 2025/2026'"
+    # The term is now a real Term row. The legacy free-text `term` column has been
+    # dropped (see migrate_terms.py) — its value was backfilled into Term rows and
+    # this FK is the single source of truth. Nullable so ADD COLUMN works on the
+    # existing table before the backfill links each row.
+    term_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("terms.id"), nullable=True,
+        comment="Which Term this fee type belongs to (source of truth)"
     )
     amount_kobo: Mapped[int] = mapped_column(
         Integer, nullable=False,
@@ -75,6 +79,7 @@ class FeeType(Base):
     # ---------- Relationships ----------
     school: Mapped["School"] = relationship(back_populates="fee_types")  # noqa: F821
     category: Mapped["FeeCategory"] = relationship(back_populates="fee_types")  # noqa: F821
+    term_obj: Mapped["Term"] = relationship(back_populates="fee_types")  # noqa: F821
     fee_records: Mapped[list["FeeRecord"]] = relationship(
         back_populates="fee_type"
     )
@@ -91,6 +96,18 @@ class FeeType(Base):
         """
         return self.category.name if self.category else "Fee"
 
+    @property
+    def term(self) -> str:
+        """
+        The term NAME as a string — reads through to the linked Term row.
+
+        Kept as a property (not a column) so there's one source of truth: the
+        Term. Every existing caller that reads `fee_type.term` (reminders,
+        receipts, dashboard) keeps working unchanged. Empty string if a row is
+        somehow unlinked (should not happen after the backfill migration).
+        """
+        return self.term_obj.name if self.term_obj is not None else ""
+
     def __repr__(self) -> str:
         return f"<FeeType(id={self.id}, category_id={self.category_id}, section='{self.section}', term='{self.term}')>"
 
@@ -99,9 +116,10 @@ class FeeRecord(Base):
     """
     Tracks what a specific student owes for a specific fee type.
 
-    IMPORTANT: balance_kobo is a COMPUTED PROPERTY, not a database column.
-    It's always: total_fees_kobo - amount_paid_kobo
-    This means it can never be "wrong" — it's mathematically derived.
+    IMPORTANT: both amount_paid_kobo AND balance_kobo are COMPUTED PROPERTIES,
+    not database columns. amount_paid_kobo is the sum of this record's confirmed
+    Payment rows; balance_kobo is total_fees_kobo - amount_paid_kobo. This means
+    they can never be "wrong" — they're mathematically derived from the payments.
     """
     __tablename__ = "fee_records"
 
@@ -114,18 +132,19 @@ class FeeRecord(Base):
         Integer, ForeignKey("fee_types.id"), nullable=False
     )
 
-    # What they owe and what they've paid
+    # What they owe. What they've PAID is NOT stored — it's computed from the
+    # Payment rows (see the amount_paid_kobo property below). Storing it as a
+    # column would be a cached aggregate that can silently drift from the actual
+    # payments; deriving it means the balance can never be "wrong".
     total_fees_kobo: Mapped[int] = mapped_column(
         Integer, nullable=False,
         comment="Total amount owed in kobo"
     )
-    amount_paid_kobo: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0,
-        comment="Total amount paid so far in kobo"
-    )
 
     # Status is derived from amounts, but stored for easy querying
-    # (it's much faster to query WHERE status='unpaid' than to compute)
+    # (it's much faster to query WHERE status='unpaid' than to compute).
+    # It's a denormalised index with a single writer (recalculate_status,
+    # called by the payment pipeline) — never a source of truth.
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="unpaid",
         comment="'unpaid', 'partial', 'paid', or 'overpaid'"
@@ -149,6 +168,19 @@ class FeeRecord(Base):
     )
 
     # ---------- Computed Properties ----------
+    @property
+    def amount_paid_kobo(self) -> int:
+        """
+        Total confirmed money paid against this record — the SUM of its Payment
+        rows, ALWAYS computed, never stored.
+
+        "Confirmed" is the definition of a Payment row: we only ever insert a
+        Payment when money has actually been received (cash/POS/transfer recorded
+        by staff, or a signature-verified Paystack webhook). There is no "pending"
+        payment state, so summing every Payment row gives the true paid amount.
+        """
+        return sum(p.amount_kobo for p in self.payments)
+
     @property
     def balance_kobo(self) -> int:
         """
@@ -198,23 +230,3 @@ def _status_for(amount_paid_kobo: int, total_fees_kobo: int) -> str:
     if amount_paid_kobo == total_fees_kobo:
         return "paid"
     return "partial"
-
-
-# --------------------------------------------------------------------------
-# Auto-recalculate status whenever amount_paid changes
-# --------------------------------------------------------------------------
-# This is a SQLAlchemy event listener. Whenever amount_paid_kobo is modified
-# on a FeeRecord, the status is automatically recalculated. This means you
-# can NEVER forget to update the status — it happens automatically.
-#
-# IMPORTANT: Do NOT re-set target.amount_paid_kobo inside this listener —
-# that would trigger the listener again and cause infinite recursion.
-# Instead, compute status directly from the incoming `value`.
-@event.listens_for(FeeRecord.amount_paid_kobo, "set")
-def _auto_recalculate_status(target: FeeRecord, value: int, oldvalue: int, initiator):
-    """Auto-update status when amount_paid_kobo changes."""
-    if value != oldvalue:
-        # Compute status from the NEW value (which SQLAlchemy is about to set).
-        # total_fees_kobo may be None during initial object construction; guard it.
-        total = target.total_fees_kobo or 0
-        target.status = _status_for(value, total)

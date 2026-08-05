@@ -41,7 +41,7 @@ class SectionSummary(BaseModel):
     The four headline numbers for one school section (or the whole school when
     section is 'All'): Total Fee, Collected, Remaining, Overpaid.
     """
-    section: str  # 'Nursery' | 'Primary' | 'Secondary' | 'All'
+    section: str  # 'Preschool' | 'Primary' | 'Smart Skills High School' | 'All'
 
     total_students: int
 
@@ -56,13 +56,60 @@ class SectionSummary(BaseModel):
     total_overpaid_display: str
 
 
+class ClassSummary(BaseModel):
+    """
+    The headline numbers for a single class within a section.
+
+    Returned by GET /api/v1/dashboard/classes?school_id=1&section=Primary
+    so the frontend can render the class-tab list without calling the full
+    dashboard/summary endpoint once per class.
+    """
+    section: str        # Parent section name
+    class_name: str     # e.g. 'Primary 3'
+
+    total_students: int
+
+    total_expected_kobo: int
+    total_collected_kobo: int
+    total_remaining_kobo: int
+    total_overpaid_kobo: int
+
+    total_expected_display: str
+    total_collected_display: str
+    total_remaining_display: str
+    total_overpaid_display: str
+
+    # How many students fall into each payment bucket (for mini badges)
+    students_paid: int
+    students_partial: int
+    students_unpaid: int
+    students_overpaid: int
+    students_no_fee: int
+
+
+class DashboardInsights(BaseModel):
+    """Part F — Small insights section for the Dashboard."""
+    top_unpaid_class: str | None = None
+    top_unpaid_class_remaining_kobo: int = 0
+    top_unpaid_class_remaining_display: str = "₦0.00"
+
+    most_common_payment_method: str | None = None
+
+    biggest_expense_category: str | None = None
+    biggest_expense_category_kobo: int = 0
+    biggest_expense_category_display: str = "₦0.00"
+
+    collection_by_section: dict[str, int] = {}
+
+
 class DashboardSummary(BaseModel):
     """
     Top-of-dashboard numbers and the paid/unpaid breakdown for the chart.
 
     Returns whole-school figures plus a per-section list, so the frontend can
-    switch between "All", "Nursery", "Primary", and "Secondary" without another
-    round-trip. `sections` always includes an 'All' entry (whole school).
+    switch between "All", "Preschool", "Primary", and "Smart Skills High School"
+    without another round-trip. `sections` always includes an 'All' entry
+    (whole school).
     """
     school_id: int
     school_name: str
@@ -79,6 +126,14 @@ class DashboardSummary(BaseModel):
     total_collected_display: str
     total_remaining_display: str
     total_overpaid_display: str
+
+    # ---- Net funds (Part D): money OUT and what's left ----
+    # All-time, whole-school. Expenses reduce the school's cash position, NOT any
+    # student's fee balance — total_remaining above is deliberately untouched.
+    total_expenses_kobo: int = 0
+    net_available_kobo: int = 0  # = total_collected_kobo - total_expenses_kobo
+    total_expenses_display: str = "₦0.00"
+    net_available_display: str = "₦0.00"
 
     # Collection rate as a whole-number percentage (0–100), for a progress bar
     collection_rate: int
@@ -97,6 +152,10 @@ class DashboardSummary(BaseModel):
 
     # Per-category collection breakdown (whole school)
     categories: list[CategoryBreakdown] = []
+
+    # Part F — Insights
+    insights: DashboardInsights | None = None
+
 
 
 class StudentOverview(BaseModel):
@@ -145,12 +204,14 @@ class FeeRecordDetail(BaseModel):
 
 class PaymentHistoryItem(BaseModel):
     """A single payment inside the student-detail drawer."""
+    id: int
     amount_kobo: int
     amount_display: str
     method: str
     recorded_by: str | None
     note: str | None
     paid_at: datetime
+    receipt_url: str | None = None
 
 
 class MessageHistoryItem(BaseModel):

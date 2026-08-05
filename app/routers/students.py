@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Student, School
 from app.schemas.student import StudentCreate, StudentUpdate, StudentResponse
+from app.services.auth_deps import require_director
 from app.utils.formatting import normalize_phone
 
 logger = logging.getLogger(__name__)
@@ -107,3 +108,20 @@ def update_student(
 
     logger.info(f"Student updated: {student.student_name} (id={student.id})")
     return student
+
+
+@router.delete("/{student_id}")
+def delete_student(
+    student_id: int,
+    db: Session = Depends(get_db),
+    actor=Depends(require_director),
+):
+    """Deactivate/delete a student record (Director only)."""
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    student.is_active = False
+    db.commit()
+    logger.info(f"Student deactivated by Director {actor.email}: id={student_id}")
+    return {"status": "ok", "message": "Student deactivated"}

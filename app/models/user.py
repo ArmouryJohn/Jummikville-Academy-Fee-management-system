@@ -58,5 +58,10 @@ class User(Base):
     # ---------- Relationships ----------
     school: Mapped["School"] = relationship(back_populates="users")  # noqa: F821
 
+    @property
+    def is_director(self) -> bool:
+        """True if user has Director level privileges ('director' or legacy 'admin')."""
+        return self.role in ("director", "admin")
+
     def __repr__(self) -> str:
         return f"<User(id={self.id}, email='{self.email}', role='{self.role}')>"

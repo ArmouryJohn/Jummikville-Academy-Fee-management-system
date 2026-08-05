@@ -1,0 +1,42 @@
+2026-08-04 13:09:35,020 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-08-04 13:09:35,037 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("schools")
+2026-08-04 13:09:35,044 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-08-04 13:09:35,077 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("students")
+2026-08-04 13:09:35,085 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-08-04 13:09:35,095 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("fee_categories")
+2026-08-04 13:09:35,103 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-08-04 13:09:35,112 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("terms")
+2026-08-04 13:09:35,120 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-08-04 13:09:35,122 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("fee_types")
+2026-08-04 13:09:35,128 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-08-04 13:09:35,136 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("fee_records")
+2026-08-04 13:09:35,143 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-08-04 13:09:35,155 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("payments")
+2026-08-04 13:09:35,162 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-08-04 13:09:35,170 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("activity_logs")
+2026-08-04 13:09:35,177 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-08-04 13:09:35,189 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("users")
+2026-08-04 13:09:35,195 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-08-04 13:09:35,201 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("webhook_events")
+2026-08-04 13:09:35,209 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-08-04 13:09:35,215 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("expenses")
+2026-08-04 13:09:35,218 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-08-04 13:09:35,222 INFO sqlalchemy.engine.Engine COMMIT
+2026-08-04 13:09:35,314 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-08-04 13:09:35,332 INFO sqlalchemy.engine.Engine SELECT users.id AS users_id, users.school_id AS users_school_id, users.email AS users_email, users.hashed_password AS users_hashed_password, users.role AS users_role, users.is_active AS users_is_active, users.created_at AS users_created_at, users.last_login AS users_last_login 
+FROM users 
+WHERE users.email = ?
+ LIMIT ? OFFSET ?
+2026-08-04 13:09:35,342 INFO sqlalchemy.engine.Engine [generated in 0.00892s] ('admin@jummikville.sch', 1, 0)
+2026-08-04 13:09:35,354 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-08-04 13:09:35,362 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-08-04 13:09:35,376 INFO sqlalchemy.engine.Engine SELECT schools.id AS schools_id, schools.name AS schools_name, schools.slug AS schools_slug, schools.phone AS schools_phone, schools.email AS schools_email, schools.address AS schools_address, schools.is_active AS schools_is_active, schools.created_at AS schools_created_at 
+FROM schools 
+WHERE schools.slug = ?
+ LIMIT ? OFFSET ?
+2026-08-04 13:09:35,383 INFO sqlalchemy.engine.Engine [generated in 0.00735s] ('jummikville', 1, 0)
+2026-08-04 13:09:35,394 INFO sqlalchemy.engine.Engine SELECT fee_categories.name AS fee_categories_name 
+FROM fee_categories 
+WHERE fee_categories.school_id = ?
+2026-08-04 13:09:35,403 INFO sqlalchemy.engine.Engine [generated in 0.00967s] (1,)
+2026-08-04 13:09:35,418 INFO sqlalchemy.engine.Engine ROLLBACK

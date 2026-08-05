@@ -34,7 +34,7 @@ class Payment(Base):
     )
     method: Mapped[str] = mapped_column(
         String(20), nullable=False,
-        comment="'paystack', 'cash', 'pos', 'transfer'"
+        comment="'paystack', 'cash', 'pos', 'bank_transfer', 'other'"
     )
 
     # Paystack-specific (null for cash/POS payments)
@@ -46,7 +46,23 @@ class Payment(Base):
     # Staff-recorded payments (null for Paystack payments)
     recorded_by: Mapped[str | None] = mapped_column(
         String(200), nullable=True,
-        comment="Name of staff who recorded a cash/POS payment"
+        comment="Label of who recorded a manual payment (defaults to the admin's email)"
+    )
+
+    # The authenticated admin who recorded a manual payment — the AUDIT ACTOR.
+    # Null for Paystack/system-driven payments (no human recorded those). Together
+    # with amount_kobo, method, note, paid_at and created_at, this row is the full
+    # audit record for a manual payment: who, what, when, how much, how.
+    recorded_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True,
+        comment="id of the admin who recorded a manual payment (audit trail)"
+    )
+
+    # Receipt PDF — generated once, then this URL is stable for re-download.
+    # Points at the protected route /api/v1/payments/{id}/receipt, not a static file.
+    receipt_url: Mapped[str | None] = mapped_column(
+        String(300), nullable=True,
+        comment="URL of the generated receipt PDF (set once after the payment)"
     )
 
     # Optional note
@@ -71,6 +87,7 @@ class Payment(Base):
     fee_record: Mapped["FeeRecord"] = relationship(  # noqa: F821
         back_populates="payments"
     )
+    recorded_by_user: Mapped["User | None"] = relationship()  # noqa: F821
 
     def __repr__(self) -> str:
         return (

@@ -255,3 +255,35 @@ def send_fee_reminder(
     )
 
     return send_whatsapp_message(parent_phone, message)
+
+
+def send_payroll_notification(
+    staff_name: str,
+    staff_phone: str | None = None,
+    phone_number: str | None = None,
+    amount_kobo: int = 0,
+    term_name: str | None = None,
+    school_name: str = "Jummikville Academy",
+) -> str | None:
+    """
+    Send a salary payment confirmation WhatsApp message to a staff member.
+    """
+    phone = staff_phone or phone_number
+    if not phone:
+        return None
+
+    term_str = f" for {term_name}" if term_name else ""
+    message = (
+        f"💼 Salary Payment Confirmation — {school_name}\n"
+        f"\n"
+        f"Dear {staff_name},\n"
+        f"\n"
+        f"This is to confirm that your salary payment{term_str} of "
+        f"{kobo_to_naira(amount_kobo)} has been processed.\n"
+        f"\n"
+        f"Thank you for your dedicated service and hard work!\n"
+        f"\n"
+        f"With best regards,\n"
+        f"Management, {school_name} 🏫"
+    )
+    return send_whatsapp_message(phone, message)

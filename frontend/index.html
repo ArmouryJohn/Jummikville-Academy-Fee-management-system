@@ -18,10 +18,16 @@
         theme: {
           extend: {
             colors: {
-              // A calm, trustworthy teal/slate palette — not flashy.
+              // Primary brand — a trustworthy blue (Tailwind blue shades).
+              // Yellow (accent below) is reserved for attention moments only.
               brand: {
-                50: "#f0fdfa", 100: "#ccfbf1", 500: "#0d9488",
-                600: "#0f766e", 700: "#115e59", 900: "#134e4a",
+                50: "#eff6ff", 100: "#dbeafe", 500: "#3b82f6",
+                600: "#2563eb", 700: "#1d4ed8", 800: "#1e40af", 900: "#1e3a8a",
+              },
+              // Accent — used sparingly for things that need attention.
+              accent: {
+                50: "#fefce8", 100: "#fef9c3", 500: "#eab308",
+                600: "#ca8a04", 700: "#a16207",
               },
             },
             fontFamily: {
@@ -31,6 +37,8 @@
         },
       };
     </script>
+    <link rel="icon" type="image/jpeg" href="/assets/images/jummikville_logo.jpeg" />
+    <link rel="apple-touch-icon" href="/assets/images/jummikville_logo.jpeg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
@@ -53,10 +61,123 @@
       /* Subtle scrollbar for the drawer */
       .thin-scroll::-webkit-scrollbar { width: 6px; }
       .thin-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+      /* =====================================================================
+         DEPTH / MOTION LAYER  (parallax + 3D tilt + gradients)
+         Design rules that keep a money app trustworthy:
+           • Effects live on decorative layers and card *chrome* — never on the
+             numbers. Balance/fee text is always flat, opaque, high-contrast.
+           • Everything is GPU-cheap (transform/opacity only) and rAF-throttled.
+           • Anyone with "reduce motion" set gets a completely static UI.
+         ===================================================================== */
+
+      /* ---- Parallax background: soft palette blobs behind all content ---- */
+      .parallax-bg {
+        position: fixed; inset: 0; z-index: -1; overflow: hidden;
+        pointer-events: none;               /* never intercept clicks */
+      }
+      .parallax-blob {
+        position: absolute; border-radius: 9999px;
+        filter: blur(60px); opacity: 0.5;
+        will-change: transform;
+        transform: translate3d(0,0,0);      /* promote to its own layer */
+      }
+      /* blue, ash, and a whisper of yellow — the palette, softened */
+      .blob-1 { width: 42rem; height: 42rem; top: -10rem; left: -8rem;
+                background: radial-gradient(circle at 30% 30%, #93c5fd, transparent 70%); }
+      .blob-2 { width: 34rem; height: 34rem; top: 20rem; right: -10rem;
+                background: radial-gradient(circle at 50% 50%, #dbeafe, transparent 70%); }
+      .blob-3 { width: 28rem; height: 28rem; bottom: -8rem; left: 30%;
+                background: radial-gradient(circle at 50% 50%, #fef9c3, transparent 72%);
+                opacity: 0.35; }
+      /* Content sits above the blobs */
+      .depth-app { position: relative; z-index: 1; }
+
+      /* ---- 3D tilt card ---- */
+      /* The wrapper provides perspective; the inner .tilt-card rotates. Both
+         transitions are short so a hovered card settles quickly and reads flat
+         again the instant the cursor leaves. */
+      .tilt-scene { perspective: 900px; }
+      .tilt-card {
+        transition: transform 220ms cubic-bezier(.2,.7,.3,1), box-shadow 220ms ease;
+        transform-style: preserve-3d;
+        will-change: transform;
+      }
+      .tilt-card:hover {
+        box-shadow: 0 18px 40px -18px rgba(30, 58, 138, 0.35);
+      }
+      /* JS sets --rx/--ry from cursor position; default is flat (0/0). */
+      .tilt-card { transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); }
+
+      /* ---- Depth-lift for data-table rows & log items ---- */
+      /* Wide rows of financial figures must NOT keystone (a 3D rotate shears the
+         far-side numbers). So instead of .tilt-card, rows/log-items get a flat
+         lift: they raise slightly with a soft shadow and a whisper of brand tint
+         on hover. Depth cue, zero distortion — every digit stays square & sharp. */
+      .lift-row {
+        transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+      }
+      .lift-row:hover {
+        background-color: rgba(37, 99, 235, 0.045);
+        box-shadow: 0 10px 24px -16px rgba(30, 58, 138, 0.45);
+        transform: translateY(-1px);
+      }
+
+      /* ---- Gradient headings (headings ONLY, never numbers) ---- */
+      .gradient-heading {
+        background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 55%, #3b82f6 100%);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent;
+      }
+
+      /* ---- Gradient border/wash on cards (chrome only) ---- */
+      .grad-card {
+        background:
+          linear-gradient(#ffffff, #ffffff) padding-box,
+          linear-gradient(135deg, rgba(37,99,235,.35), rgba(148,163,184,.18) 55%, rgba(234,179,8,.28)) border-box;
+        border: 1px solid transparent;
+      }
+
+      /* ---- Section reveal: plays when the stat block re-mounts on tab switch ---- */
+      @keyframes depthReveal {
+        from { opacity: 0; transform: translateY(10px) scale(.985); }
+        to   { opacity: 1; transform: translateY(0)    scale(1); }
+      }
+      .reveal-on-switch > * { animation: depthReveal 360ms cubic-bezier(.2,.7,.3,1) both; }
+      /* Gentle stagger so cards cascade in rather than snapping together */
+      .reveal-on-switch > *:nth-child(2) { animation-delay: 60ms; }
+      .reveal-on-switch > *:nth-child(3) { animation-delay: 120ms; }
+      .reveal-on-switch > *:nth-child(4) { animation-delay: 180ms; }
+
+      /* ---- Button 3D depress ---- */
+      .btn-depress { transition: transform 90ms ease, box-shadow 90ms ease; }
+      .btn-depress:active { transform: translateY(2px) scale(.985); box-shadow: none; }
+
+      /* ---- Respect the user's motion preference: kill ALL of the above ---- */
+      @media (prefers-reduced-motion: reduce) {
+        .parallax-blob { display: none; }
+        .tilt-card { transform: none !important; transition: none; }
+        .lift-row { transition: none; }
+        .lift-row:hover { transform: none; }
+        .reveal-on-switch > * { animation: none; }
+        .btn-depress { transition: none; }
+        .btn-depress:active { transform: none; }
+      }
     </style>
   </head>
 
   <body class="h-full bg-slate-50 text-slate-800 antialiased" x-data>
+    <!-- ================= PARALLAX BACKDROP =================
+         Fixed, non-interactive palette blobs. JS nudges them at different
+         speeds as you scroll (see the depth script at the end of <body>),
+         giving the page a sense of depth behind the content. Purely
+         decorative and hidden entirely under prefers-reduced-motion. -->
+    <div class="parallax-bg" aria-hidden="true">
+      <div class="parallax-blob blob-1" data-depth="0.12"></div>
+      <div class="parallax-blob blob-2" data-depth="0.20"></div>
+      <div class="parallax-blob blob-3" data-depth="0.08"></div>
+    </div>
+
     <!-- =========================================================== -->
     <!-- ================= AUTH GATE =============================== -->
     <!-- =========================================================== -->
@@ -83,9 +204,8 @@
          class="flex min-h-screen items-center justify-center px-4">
       <div class="w-full max-w-sm" x-data="loginForm()">
         <div class="mb-6 flex flex-col items-center text-center">
-          <div class="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-lg font-bold text-white">
-            J
-          </div>
+          <img src="/assets/images/jummikville_logo.jpeg" alt="Jummikville Academy logo"
+               class="mb-3 h-12 w-12 rounded-2xl object-contain" />
           <h1 class="text-lg font-semibold text-slate-900">Jummikville Academy</h1>
           <p class="text-sm text-slate-500">Sign in to the fee management dashboard.</p>
         </div>
@@ -129,9 +249,8 @@
     <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
       <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <div class="flex items-center gap-3">
-          <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white font-bold">
-            J
-          </div>
+          <img src="/assets/images/jummikville_logo.jpeg" alt="Jummikville Academy logo"
+               class="h-9 w-9 rounded-xl object-contain" />
           <div>
             <p class="text-sm font-semibold leading-tight">Jummikville Academy</p>
             <p class="text-xs text-slate-500 leading-tight">Fee Management</p>
@@ -141,11 +260,16 @@
         <!-- Desktop nav -->
         <nav class="hidden items-center gap-1 sm:flex">
           <template x-for="tab in [
-              {id:'dashboard', label:'Dashboard'},
-              {id:'parents', label:'Parents'},
-              {id:'setup', label:'Setup'},
-              {id:'activity', label:'Activity'}
-            ]" :key="tab.id">
+              {id:'dashboard', label:'Dashboard', directorOnly: false},
+              {id:'parents', label:'Parents', directorOnly: false},
+              {id:'terms', label:'Terms', directorOnly: false},
+              {id:'reports', label:'Reports', directorOnly: false},
+              {id:'expenses', label:'Expenses', directorOnly: false},
+              {id:'payroll', label:'Payroll 🔒', directorOnly: true},
+              {id:'admins', label:'Admins 🔒', directorOnly: true},
+              {id:'setup', label:'Setup', directorOnly: false},
+              {id:'activity', label:'Activity', directorOnly: false}
+            ].filter(t => !t.directorOnly || $store.auth.isDirector)" :key="tab.id">
             <button
               @click="$store.app.go(tab.id)"
               :class="$store.app.screen === tab.id
@@ -156,7 +280,7 @@
           </template>
           <!-- Divider + who's-logged-in + logout -->
           <div class="ml-2 flex items-center gap-2 border-l border-slate-200 pl-3">
-            <span class="hidden text-xs text-slate-500 md:inline" x-text="$store.auth.user?.email"></span>
+            <span class="hidden text-xs text-slate-500 md:inline" x-text="($store.auth.user?.email || '') + ($store.auth.isDirector ? ' (Director)' : ' (Staff Admin)')"></span>
             <button @click="$store.auth.logout()"
               class="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100">
               Sign out
@@ -167,19 +291,24 @@
 
       <!-- Mobile nav -->
       <nav class="border-t border-slate-100 sm:hidden">
-        <div class="flex">
+        <div class="flex overflow-x-auto">
           <template x-for="tab in [
-              {id:'dashboard', label:'Dashboard'},
-              {id:'parents', label:'Parents'},
-              {id:'setup', label:'Setup'},
-              {id:'activity', label:'Activity'}
-            ]" :key="tab.id">
+              {id:'dashboard', label:'Dashboard', directorOnly: false},
+              {id:'parents', label:'Parents', directorOnly: false},
+              {id:'terms', label:'Terms', directorOnly: false},
+              {id:'reports', label:'Reports', directorOnly: false},
+              {id:'expenses', label:'Expenses', directorOnly: false},
+              {id:'payroll', label:'Payroll', directorOnly: true},
+              {id:'admins', label:'Admins', directorOnly: true},
+              {id:'setup', label:'Setup', directorOnly: false},
+              {id:'activity', label:'Activity', directorOnly: false}
+            ].filter(t => !t.directorOnly || $store.auth.isDirector)" :key="tab.id">
             <button
               @click="$store.app.go(tab.id)"
               :class="$store.app.screen === tab.id
                 ? 'text-brand-700 border-brand-600'
                 : 'text-slate-500 border-transparent'"
-              class="flex-1 border-b-2 py-2.5 text-sm font-medium transition"
+              class="flex-1 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition"
               x-text="tab.label"></button>
           </template>
         </div>
@@ -201,13 +330,13 @@
       <section x-show="$store.app.screen === 'dashboard'" x-data="dashboard()">
         <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 class="text-xl font-semibold text-slate-900">Overview</h1>
+            <h1 class="gradient-heading text-xl font-semibold">Overview</h1>
             <p class="text-sm text-slate-500">A calm snapshot of fee collection.</p>
           </div>
           <button
             @click="sendReminders()"
             :disabled="sending || loading"
-            class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-50">
+            class="btn-depress inline-flex items-center gap-2 rounded-xl bg-accent-500 px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-accent-600 disabled:opacity-50">
             <span x-show="!sending">📩 Send Reminders Now</span>
             <span x-show="sending" x-cloak class="flex items-center gap-2">
               <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -220,19 +349,49 @@
         </div>
 
         <!-- Section switcher: whole-school vs one section. Reloads the numbers. -->
-        <div class="mb-6 inline-flex rounded-xl bg-slate-100 p-1 text-sm">
+        <div class="mb-3 inline-flex flex-wrap rounded-xl bg-slate-100 p-1 text-sm">
           <template x-for="opt in [
               { id: 'all', label: 'Whole School' },
-              { id: 'Nursery', label: 'Nursery' },
+              { id: 'Preschool', label: 'Preschool' },
               { id: 'Primary', label: 'Primary' },
-              { id: 'Secondary', label: 'Secondary' },
+              { id: 'Smart Skills High School', label: 'Smart Skills High School' },
             ]" :key="opt.id">
             <button @click="switchSection(opt.id)"
               :disabled="loading"
-              :class="section === opt.id ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500'"
-              class="rounded-lg px-4 py-1.5 font-medium transition disabled:opacity-50"
+              :class="section === opt.id && activeClass === null ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500'"
+              class="btn-depress rounded-lg px-4 py-1.5 font-medium transition disabled:opacity-50"
               x-text="opt.label"></button>
           </template>
+        </div>
+
+        <!-- Class tab row (only shown when a section is active) -->
+        <div x-show="section !== 'all' && classSummaries.length > 0" x-cloak class="mb-6">
+          <!-- Breadcrumb when drilled into a class -->
+          <div x-show="activeClass !== null" x-cloak class="mb-3 flex items-center gap-2 text-sm text-slate-500">
+            <button @click="backToSection()"
+              class="flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-slate-100 text-brand-600 font-medium">
+              Back to <span x-text="section"></span>
+            </button>
+            <span class="text-slate-300">/</span>
+            <span class="font-semibold text-slate-800" x-text="activeClass"></span>
+          </div>
+          <!-- Class tabs -->
+          <div x-show="activeClass === null" x-cloak class="flex flex-wrap gap-2">
+            <template x-for="cls in classTabsForSection" :key="cls.class_name">
+              <button @click="switchClass(cls.class_name)"
+                :class="activeClass === cls.class_name ? 'bg-brand-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:border-brand-400'"
+                class="btn-depress inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition">
+                <span x-text="cls.class_name"></span>
+                <span x-show="cls.total_students > 0"
+                  class="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold"
+                  :class="classAttentionCount(cls) > 0 ? 'bg-accent-100 text-accent-700' : 'bg-emerald-50 text-emerald-700'">
+                  <span x-show="classAttentionCount(cls) > 0" x-text="classAttentionCount(cls)"></span>
+                  <span x-show="classAttentionCount(cls) === 0">all paid</span>
+                </span>
+                <span x-show="cls.total_students === 0" class="text-xs text-slate-400">empty</span>
+              </button>
+            </template>
+          </div>
         </div>
 
         <!-- Loading skeleton -->
@@ -245,43 +404,131 @@
         <template x-if="!loading && summary">
           <div>
             <!-- The four headline numbers the school asked for. -->
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <!-- tilt-scene = perspective for the 3D hover. reveal-on-switch plays
+                 the entrance animation whenever this block re-mounts — which the
+                 outer x-if does on every tab switch (switchSection flips `loading`,
+                 so !loading && summary briefly goes false then true). Numbers
+                 themselves stay flat & solid. -->
+            <div class="tilt-scene reveal-on-switch grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div class="tilt-card grad-card rounded-2xl bg-white p-5 shadow-sm">
                 <p class="text-sm text-slate-500">Total Fee</p>
                 <p class="mt-2 text-2xl font-bold text-slate-900" x-text="summary.total_expected_display"></p>
                 <p class="mt-1 text-xs text-slate-400">
                   <span x-text="summary.total_students"></span> student<span x-show="summary.total_students !== 1">s</span>
                 </p>
               </div>
-              <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div class="tilt-card grad-card rounded-2xl bg-white p-5 shadow-sm">
                 <p class="text-sm text-slate-500">Total Fee Collected</p>
                 <p class="mt-2 text-2xl font-bold text-emerald-600" x-text="summary.total_collected_display"></p>
               </div>
-              <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div class="tilt-card grad-card rounded-2xl bg-white p-5 shadow-sm">
                 <p class="text-sm text-slate-500">Total Fee Remaining</p>
-                <p class="mt-2 text-2xl font-bold text-rose-600" x-text="summary.total_remaining_display"></p>
+                <p class="mt-2 text-2xl font-bold text-slate-700" x-text="summary.total_remaining_display"></p>
               </div>
-              <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div class="tilt-card grad-card rounded-2xl bg-white p-5 shadow-sm">
                 <p class="text-sm text-slate-500">Total Overpaid</p>
-                <p class="mt-2 text-2xl font-bold text-sky-600" x-text="summary.total_overpaid_display"></p>
+                <p class="mt-2 text-2xl font-bold text-accent-600" x-text="summary.total_overpaid_display"></p>
                 <p class="mt-1 text-xs text-slate-400">Credit to return to parents</p>
               </div>
             </div>
 
+            <!-- Net funds (Part D): money OUT and what's actually left.
+                 All-time, whole-school. Expenses reduce the school's cash
+                 position — they NEVER change any student's fee balance. -->
+            <div class="tilt-scene reveal-on-switch mt-4 grid gap-4 sm:grid-cols-2">
+              <div class="tilt-card grad-card rounded-2xl bg-white p-5 shadow-sm">
+                <p class="text-sm text-slate-500">Total Expenses</p>
+                <p class="mt-2 text-2xl font-bold text-rose-600" x-text="summary.total_expenses_display"></p>
+                <p class="mt-1 text-xs text-slate-400">School spending (all-time)</p>
+              </div>
+              <div class="tilt-card grad-card rounded-2xl bg-white p-5 shadow-sm">
+                <p class="text-sm text-slate-500">Net Available</p>
+                <p class="mt-2 text-2xl font-bold text-emerald-600" x-text="summary.net_available_display"></p>
+                <p class="mt-1 text-xs text-slate-400">Collected − Expenses</p>
+              </div>
+            </div>
+
+            <!-- Part F: Dashboard Insights -->
+            <div x-show="summary.insights" x-cloak class="mt-6">
+              <div class="mb-3 flex items-center gap-2">
+                <span class="text-base">💡</span>
+                <h3 class="text-sm font-semibold text-slate-800">Dashboard Insights</h3>
+              </div>
+              <div class="tilt-scene grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <!-- Top Unpaid Class -->
+                <div class="tilt-card grad-card rounded-2xl bg-white p-4 shadow-sm">
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Top Unpaid Class</p>
+                    <span class="rounded-lg bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">Highest Owed</span>
+                  </div>
+                  <p class="mt-2 text-lg font-bold text-slate-800"
+                     x-text="summary.insights.top_unpaid_class || 'None (All Paid)'"></p>
+                  <p class="text-xs text-rose-600 font-semibold mt-1"
+                     x-show="summary.insights.top_unpaid_class"
+                     x-text="summary.insights.top_unpaid_class_remaining_display + ' outstanding'"></p>
+                </div>
+
+                <!-- Most Common Payment Method -->
+                <div class="tilt-card grad-card rounded-2xl bg-white p-4 shadow-sm">
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Popular Method</p>
+                    <span class="rounded-lg bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Payment Trend</span>
+                  </div>
+                  <p class="mt-2 text-lg font-bold text-slate-800"
+                     x-text="summary.insights.most_common_payment_method || 'No payments yet'"></p>
+                  <p class="text-xs text-slate-400 mt-1">Most used channel</p>
+                </div>
+
+                <!-- Biggest Expense Category -->
+                <div class="tilt-card grad-card rounded-2xl bg-white p-4 shadow-sm">
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Top Expense</p>
+                    <span class="rounded-lg bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">Spend Leader</span>
+                  </div>
+                  <p class="mt-2 text-lg font-bold text-slate-800"
+                     x-text="summary.insights.biggest_expense_category || 'No expenses'"></p>
+                  <p class="text-xs text-rose-600 font-semibold mt-1"
+                     x-show="summary.insights.biggest_expense_category"
+                     x-text="summary.insights.biggest_expense_category_display + ' total'"></p>
+                </div>
+
+                <!-- Collection by Section -->
+                <div class="tilt-card grad-card rounded-2xl bg-white p-4 shadow-sm">
+                  <div class="flex items-center justify-between mb-2">
+                    <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Section Rates</p>
+                    <span class="rounded-lg bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Breakdown</span>
+                  </div>
+                  <div class="space-y-1.5">
+                    <template x-for="(rate, secName) in summary.insights.collection_by_section" :key="secName">
+                      <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-600 truncate max-w-[110px]" x-text="secName"></span>
+                        <span class="font-semibold text-brand-700" x-text="rate + '%'"></span>
+                      </div>
+                    </template>
+                    <div x-show="!Object.keys(summary.insights.collection_by_section || {}).length" class="text-xs text-slate-400">
+                      No section data
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Chart + collection rate + mini feed -->
-            <div class="mt-6 grid gap-4 lg:grid-cols-3">
+            <div class="tilt-scene mt-6 grid gap-4 lg:grid-cols-3">
               <!-- Chart -->
-              <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-1">
+              <div class="tilt-card grad-card rounded-2xl bg-white p-5 shadow-sm lg:col-span-1">
                 <p class="mb-1 text-sm font-medium text-slate-700">Payment status</p>
                 <p class="mb-3 text-xs text-slate-400"
-                   x-text="section === 'all' ? 'Across all students' : section + ' section'"></p>
+                   x-text="activeClass
+                   ? activeClass + ' · ' + section
+                   : (section === 'all' ? 'Across all students' : section + ' section')"></p>
                 <div class="relative mx-auto h-56">
                   <canvas x-ref="paidChart"></canvas>
                 </div>
               </div>
 
               <!-- Collection progress + recent activity -->
-              <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+              <div class="tilt-card grad-card rounded-2xl bg-white p-5 shadow-sm lg:col-span-2">
                 <div class="mb-4">
                   <div class="mb-1 flex items-center justify-between">
                     <p class="text-sm font-medium text-slate-700">Collection rate</p>
@@ -322,8 +569,10 @@
             </div>
 
             <!-- Per-category breakdown: how each fee category is collecting,
-                 school-wide. Only categories that have fee types assigned show. -->
-            <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                 school-wide. Only categories that have fee types assigned show.
+                 Gradient border only (no tilt) — a wide data table must stay flat
+                 and perfectly legible. -->
+            <div class="grad-card mt-6 rounded-2xl bg-white p-5 shadow-sm">
               <p class="mb-1 text-sm font-medium text-slate-700">Collection by category</p>
               <p class="mb-4 text-xs text-slate-400">Every fee category, tracked school-wide.</p>
 
@@ -349,13 +598,52 @@
                         <td class="px-3 py-2.5 font-medium text-slate-800" x-text="c.category_name"></td>
                         <td class="px-3 py-2.5 text-right text-slate-700" x-text="c.total_expected_display"></td>
                         <td class="px-3 py-2.5 text-right font-medium text-emerald-600" x-text="c.total_collected_display"></td>
-                        <td class="px-3 py-2.5 text-right text-rose-600" x-text="c.total_remaining_display"></td>
-                        <td class="px-3 py-2.5 text-right text-sky-600" x-text="c.total_overpaid_display"></td>
+                        <td class="px-3 py-2.5 text-right text-slate-700" x-text="c.total_remaining_display"></td>
+                        <td class="px-3 py-2.5 text-right text-accent-600" x-text="c.total_overpaid_display"></td>
                       </tr>
                     </template>
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            <!-- Class student list — only shown when drilled into a specific class -->
+            <div x-show="activeClass !== null && classStudents.length > 0" x-cloak class="grad-card mt-6 rounded-2xl bg-white p-5 shadow-sm">
+              <p class="mb-1 text-sm font-medium text-slate-700">
+                Students in <span x-text="activeClass"></span>
+              </p>
+              <p class="mb-4 text-xs text-slate-400">
+                <span x-text="classStudents.length"></span> student<span x-show="classStudents.length !== 1">s</span>
+              </p>
+              <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead>
+                    <tr class="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
+                      <th class="px-3 py-2">Student</th>
+                      <th class="px-3 py-2">Parent</th>
+                      <th class="px-3 py-2 text-right">Total Fee</th>
+                      <th class="px-3 py-2 text-right">Paid</th>
+                      <th class="px-3 py-2 text-right">Remaining</th>
+                      <th class="px-3 py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-50">
+                    <template x-for="s in classStudents" :key="s.student_id">
+                      <tr class="hover:bg-slate-50/60">
+                        <td class="px-3 py-2.5 font-medium text-slate-800" x-text="s.student_name"></td>
+                        <td class="px-3 py-2.5 text-slate-500" x-text="s.parent_name"></td>
+                        <td class="px-3 py-2.5 text-right text-slate-700" x-text="s.total_fees_display"></td>
+                        <td class="px-3 py-2.5 text-right font-medium text-emerald-600" x-text="s.amount_paid_display"></td>
+                        <td class="px-3 py-2.5 text-right text-slate-700" x-text="s.remaining_display"></td>
+                        <td class="px-3 py-2.5" x-html="statusBadge(s.status)"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div x-show="activeClass !== null && classStudents.length === 0" x-cloak class="grad-card mt-6 rounded-2xl bg-white p-5 shadow-sm">
+              <p class="py-4 text-center text-sm text-slate-400">No students in <span x-text="activeClass"></span> yet.</p>
             </div>
           </div>
         </template>
@@ -367,11 +655,11 @@
       <section x-show="$store.app.screen === 'parents'" x-data="parents()">
         <div class="mb-5 flex items-start justify-between">
           <div>
-            <h1 class="text-xl font-semibold text-slate-900">Parents &amp; Students</h1>
+            <h1 class="gradient-heading text-xl font-semibold">Parents &amp; Students</h1>
             <p class="text-sm text-slate-500">Search, check balances, and record payments.</p>
           </div>
           <button @click="openAdd()"
-            class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
+            class="btn-depress inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
             <span class="text-base leading-none">＋</span> Add student
           </button>
         </div>
@@ -401,12 +689,12 @@
         </div>
 
         <!-- Section filter -->
-        <div class="mb-4 flex gap-1 rounded-xl bg-slate-100 p-1 sm:inline-flex">
+        <div class="mb-4 flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1 sm:inline-flex">
           <template x-for="opt in [
               {id:'all', label:'All sections'},
-              {id:'Nursery', label:'Nursery'},
+              {id:'Preschool', label:'Preschool'},
               {id:'Primary', label:'Primary'},
-              {id:'Secondary', label:'Secondary'}
+              {id:'Smart Skills High School', label:'Smart Skills'}
             ]" :key="opt.id">
             <button @click="sectionFilter = opt.id"
               :class="sectionFilter === opt.id ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500'"
@@ -423,7 +711,7 @@
         </div>
 
         <!-- Table (desktop) -->
-        <div x-show="!loading" class="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:block">
+        <div x-show="!loading" class="grad-card hidden overflow-hidden rounded-2xl bg-white shadow-sm sm:block">
           <table class="min-w-full divide-y divide-slate-100">
             <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
@@ -439,7 +727,7 @@
             </thead>
             <tbody class="divide-y divide-slate-50 text-sm">
               <template x-for="s in filtered" :key="s.student_id">
-                <tr class="hover:bg-slate-50/70">
+                <tr class="lift-row">
                   <td class="px-5 py-3 cursor-pointer" @click="openDetail(s.student_id)">
                     <p class="font-medium text-slate-900" x-text="s.student_name"></p>
                     <p class="text-xs text-slate-500">
@@ -455,7 +743,7 @@
                     <!-- Overpaid → show the credit clearly. Otherwise show what's
                          left to complete (never a confusing negative number). -->
                     <template x-if="s.overpaid_kobo > 0">
-                      <span class="text-sky-600" x-text="'Overpaid by ' + s.overpaid_display"></span>
+                      <span class="text-accent-600" x-text="'Overpaid by ' + s.overpaid_display"></span>
                     </template>
                     <template x-if="s.overpaid_kobo === 0">
                       <span class="text-slate-900" x-text="s.remaining_display"></span>
@@ -466,11 +754,18 @@
                           :class="statusBadge(s.status).cls" x-text="statusBadge(s.status).label"></span>
                   </td>
                   <td class="px-5 py-3 text-right">
-                    <button @click="openPayment(s)"
-                      x-show="s.remaining_kobo > 0"
-                      class="rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100">
-                      Record payment
-                    </button>
+                    <div class="inline-flex items-center gap-2">
+                      <button @click="openPayLink(s)"
+                        x-show="s.remaining_kobo > 0"
+                        class="btn-depress rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700">
+                        Pay now
+                      </button>
+                      <button @click="openPayment(s)"
+                        x-show="s.remaining_kobo > 0"
+                        class="btn-depress rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100">
+                        Record payment
+                      </button>
+                    </div>
                   </td>
                 </tr>
               </template>
@@ -482,9 +777,9 @@
         </div>
 
         <!-- Cards (mobile) -->
-        <div x-show="!loading" class="space-y-3 sm:hidden">
+        <div x-show="!loading" class="tilt-scene space-y-3 sm:hidden">
           <template x-for="s in filtered" :key="s.student_id">
-            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="tilt-card grad-card rounded-2xl bg-white p-4 shadow-sm">
               <div class="flex items-start justify-between" @click="openDetail(s.student_id)">
                 <div>
                   <p class="font-medium text-slate-900" x-text="s.student_name"></p>
@@ -499,7 +794,7 @@
                   <template x-if="s.overpaid_kobo > 0">
                     <div>
                       <p class="text-xs text-slate-400">Overpaid</p>
-                      <p class="font-semibold text-sky-600" x-text="s.overpaid_display"></p>
+                      <p class="font-semibold text-accent-600" x-text="s.overpaid_display"></p>
                     </div>
                   </template>
                   <template x-if="s.overpaid_kobo === 0">
@@ -509,10 +804,16 @@
                     </div>
                   </template>
                 </div>
-                <button @click="openPayment(s)" x-show="s.remaining_kobo > 0"
-                  class="rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700">
-                  Record payment
-                </button>
+                <div class="flex items-center gap-2">
+                  <button @click="openPayLink(s)" x-show="s.remaining_kobo > 0"
+                    class="btn-depress rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white">
+                    Pay now
+                  </button>
+                  <button @click="openPayment(s)" x-show="s.remaining_kobo > 0"
+                    class="btn-depress rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700">
+                    Record payment
+                  </button>
+                </div>
               </div>
             </div>
           </template>
@@ -552,13 +853,13 @@
                     <template x-if="detail && detail.overpaid_kobo > 0">
                       <div>
                         <p class="text-xs text-slate-400">Overpaid</p>
-                        <p class="text-sm font-semibold text-sky-600" x-text="detail?.overpaid_display"></p>
+                        <p class="text-sm font-semibold text-accent-600" x-text="detail?.overpaid_display"></p>
                       </div>
                     </template>
                     <template x-if="!detail || detail.overpaid_kobo === 0">
                       <div>
                         <p class="text-xs text-slate-400">Remaining</p>
-                        <p class="text-sm font-semibold text-rose-600" x-text="detail?.remaining_display"></p>
+                        <p class="text-sm font-semibold text-slate-700" x-text="detail?.remaining_display"></p>
                       </div>
                     </template>
                   </div>
@@ -594,7 +895,7 @@
                       </div>
                       <div class="text-right">
                         <template x-if="f.overpaid_kobo > 0">
-                          <p class="text-sm font-semibold text-sky-600" x-text="'Overpaid ' + f.overpaid_display"></p>
+                          <p class="text-sm font-semibold text-accent-600" x-text="'Overpaid ' + f.overpaid_display"></p>
                         </template>
                         <template x-if="f.overpaid_kobo === 0">
                           <p class="text-sm font-semibold text-slate-900" x-text="f.remaining_display + ' left'"></p>
@@ -638,11 +939,17 @@
                       <div>
                         <p class="text-sm font-medium text-slate-800" x-text="p.amount_display"></p>
                         <p class="text-xs text-slate-400">
-                          <span class="uppercase" x-text="p.method"></span>
+                          <span class="uppercase" x-text="(p.method || '').replace('_', ' ')"></span>
                           <span x-show="p.recorded_by" x-text="' · by ' + p.recorded_by"></span>
                         </p>
                       </div>
-                      <p class="text-xs text-slate-400" x-text="formatDateTime(p.paid_at)"></p>
+                      <div class="flex flex-col items-end gap-1">
+                        <p class="text-xs text-slate-400" x-text="formatDateTime(p.paid_at)"></p>
+                        <a x-show="p.receipt_url" :href="p.receipt_url" target="_blank" rel="noopener"
+                           class="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700 hover:underline">
+                          🧾 Receipt
+                        </a>
+                      </div>
                     </li>
                   </template>
                 </ul>
@@ -688,11 +995,11 @@
 
               <div>
                 <label class="mb-1 block text-sm font-medium text-slate-700">Method</label>
-                <div class="flex gap-2">
-                  <template x-for="m in ['cash','pos','transfer']" :key="m">
-                    <button type="button" @click="payForm.method = m"
-                      :class="payForm.method === m ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'"
-                      class="flex-1 rounded-xl py-2 text-sm font-medium capitalize transition" x-text="m"></button>
+                <div class="grid grid-cols-2 gap-2">
+                  <template x-for="m in [{v:'cash',l:'Cash'},{v:'pos',l:'POS'},{v:'bank_transfer',l:'Bank transfer'},{v:'other',l:'Other'}]" :key="m.v">
+                    <button type="button" @click="payForm.method = m.v"
+                      :class="payForm.method === m.v ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'"
+                      class="rounded-xl py-2 text-sm font-medium transition" x-text="m.l"></button>
                   </template>
                 </div>
               </div>
@@ -724,6 +1031,97 @@
           </div>
         </div>
 
+        <!-- ============ ONLINE PAYMENT LINK MODAL (Paystack) ============ -->
+        <div x-show="linkOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+             @keydown.escape.window="closePayLink()">
+          <div class="absolute inset-0 bg-slate-900/40" @click="closePayLink()"></div>
+          <div class="relative w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+               x-transition:enter="transition ease-out duration-200"
+               x-transition:enter-start="translate-y-8 opacity-0" x-transition:enter-end="translate-y-0 opacity-100">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-slate-900">Online payment link</h2>
+              <button @click="closePayLink()" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+
+            <!-- Step 1: pick the fee + amount (hidden once a link is generated) -->
+            <div x-show="!linkResult">
+              <p class="mb-4 text-sm text-slate-500">
+                Generate a Paystack checkout link for
+                <span class="font-medium text-slate-700" x-text="linkStudentName"></span>.
+                Share it with the parent — when they pay, the balance updates automatically.
+              </p>
+
+              <div class="space-y-4">
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-slate-700">Fee</label>
+                  <select x-model="linkForm.fee_record_id"
+                    class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                    <option value="">Select a fee…</option>
+                    <template x-for="f in linkFeeLines" :key="f.fee_record_id">
+                      <option :value="f.fee_record_id"
+                        x-text="`${f.fee_name} (${f.fee_term}) — ${f.remaining_display} left`"></option>
+                    </template>
+                  </select>
+                  <p x-show="linkFeeLines.length === 0" x-cloak class="mt-1 text-xs text-slate-400">
+                    No outstanding fees for this student.
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-slate-700">Amount (₦) — optional</label>
+                  <input x-model="linkForm.amount_naira" type="number" min="0" step="0.01"
+                    placeholder="Leave blank for the full balance"
+                    class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+                </div>
+              </div>
+
+              <div class="mt-6 flex gap-3">
+                <button @click="closePayLink()"
+                  class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                  Cancel
+                </button>
+                <button @click="generatePayLink()" :disabled="linkLoading"
+                  class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                  <span x-show="!linkLoading">Generate link</span>
+                  <span x-show="linkLoading" x-cloak>Generating…</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Step 2: the generated link -->
+            <div x-show="linkResult" x-cloak>
+              <p class="mb-4 text-sm text-slate-500">
+                Payment link for
+                <span class="font-medium text-slate-700" x-text="linkStudentName"></span>.
+                Copy it and send it to the parent, or open it to test the payment yourself.
+              </p>
+
+              <div class="rounded-xl bg-slate-50 p-3">
+                <p class="break-all text-sm text-brand-700" x-text="linkResult?.authorization_url"></p>
+              </div>
+              <p class="mt-2 text-xs text-slate-400">
+                Reference: <span x-text="linkResult?.reference"></span>
+              </p>
+
+              <div class="mt-6 flex gap-3">
+                <button @click="copyPayLink()"
+                  class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                  <span x-show="!linkCopied">Copy link</span>
+                  <span x-show="linkCopied" x-cloak class="text-brand-700">Copied!</span>
+                </button>
+                <a :href="linkResult?.authorization_url" target="_blank" rel="noopener"
+                  class="flex-1 rounded-xl bg-brand-600 py-2.5 text-center text-sm font-semibold text-white hover:bg-brand-700">
+                  Open link
+                </a>
+              </div>
+              <button @click="closePayLink()"
+                class="mt-3 w-full rounded-xl py-2 text-sm font-medium text-slate-400 hover:text-slate-600">
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- ============ ADD STUDENT MODAL ============ -->
         <div x-show="addOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
              @keydown.escape.window="closeAdd()">
@@ -747,18 +1145,23 @@
               </div>
               <div>
                 <label class="mb-1 block text-sm font-medium text-slate-700">Section</label>
-                <div class="flex gap-2">
-                  <template x-for="sec in ['Nursery','Primary','Secondary']" :key="sec">
-                    <button type="button" @click="addForm.section = sec"
+                <div class="flex flex-wrap gap-2">
+                  <template x-for="sec in SECTIONS" :key="sec">
+                    <button type="button" @click="addForm.section = sec; addForm.class_name = ''"
                       :class="addForm.section === sec ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'"
-                      class="flex-1 rounded-xl py-2 text-sm font-medium transition" x-text="sec"></button>
+                      class="rounded-xl px-3 py-2 text-sm font-medium transition" x-text="sec"></button>
                   </template>
                 </div>
               </div>
               <div>
-                <label class="mb-1 block text-sm font-medium text-slate-700">Class (optional)</label>
-                <input x-model="addForm.class_name" type="text" placeholder="e.g. JSS 2"
-                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+                <label class="mb-1 block text-sm font-medium text-slate-700">Class</label>
+                <select x-model="addForm.class_name"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                  <option value="">— select class —</option>
+                  <template x-for="c in addClassOptions" :key="c">
+                    <option :value="c" x-text="c"></option>
+                  </template>
+                </select>
               </div>
               <div>
                 <label class="mb-1 block text-sm font-medium text-slate-700">Parent name</label>
@@ -792,7 +1195,7 @@
                       <option :value="t.id" x-text="`${t.name} · ${t.section} — ${t.term}`"></option>
                     </template>
                   </select>
-                  <p x-show="feeTypes.length === 0" class="mt-1 text-xs text-amber-600">
+                  <p x-show="feeTypes.length === 0" class="mt-1 text-xs text-accent-700">
                     No fee types yet. Create one on the Setup screen first.
                   </p>
                 </div>
@@ -839,18 +1242,23 @@
               </div>
               <div>
                 <label class="mb-1 block text-sm font-medium text-slate-700">Section</label>
-                <div class="flex gap-2">
-                  <template x-for="sec in ['Nursery','Primary','Secondary']" :key="sec">
-                    <button type="button" @click="editForm.section = sec"
+                <div class="flex flex-wrap gap-2">
+                  <template x-for="sec in SECTIONS" :key="sec">
+                    <button type="button" @click="editForm.section = sec; editForm.class_name = ''"
                       :class="editForm.section === sec ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'"
-                      class="flex-1 rounded-xl py-2 text-sm font-medium transition" x-text="sec"></button>
+                      class="rounded-xl px-3 py-2 text-sm font-medium transition" x-text="sec"></button>
                   </template>
                 </div>
               </div>
               <div>
                 <label class="mb-1 block text-sm font-medium text-slate-700">Class</label>
-                <input x-model="editForm.class_name" type="text" placeholder="e.g. JSS 2"
-                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+                <select x-model="editForm.class_name"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                  <option value="">— select class —</option>
+                  <template x-for="c in editClassOptions" :key="c">
+                    <option :value="c" x-text="c"></option>
+                  </template>
+                </select>
               </div>
               <div>
                 <label class="mb-1 block text-sm font-medium text-slate-700">Parent name</label>
@@ -909,7 +1317,7 @@
                     <option :value="t.id" x-text="`${t.name} · ${t.section} — ${t.term}`"></option>
                   </template>
                 </select>
-                <p x-show="feeTypes.length === 0" class="mt-1 text-xs text-amber-600">
+                <p x-show="feeTypes.length === 0" class="mt-1 text-xs text-accent-700">
                   No fee types yet. Create one on the Setup screen first.
                 </p>
               </div>
@@ -946,9 +1354,1210 @@
            Primary · Term 1 · ₦75,000"). Assigning one to a student happens on
            the Parents screen.
       -->
+      <!-- ========================================================= -->
+      <!-- ===================== TERMS SCREEN ====================== -->
+      <!-- ========================================================= -->
+      <section x-show="$store.app.screen === 'terms'" x-data="terms()">
+        <div class="mb-5 flex items-center justify-between">
+          <div>
+            <h1 class="gradient-heading text-xl font-semibold">Terms</h1>
+            <p class="text-sm text-slate-500">The academic terms your school runs. Fees, payments and reports all belong to a term.</p>
+          </div>
+          <button @click="openCreate()"
+            class="btn-depress inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
+            <span class="text-base leading-none">＋</span> New term
+          </button>
+        </div>
+
+        <!-- Loading -->
+        <div x-show="loading" class="space-y-2">
+          <template x-for="i in 3" :key="i">
+            <div class="h-16 animate-pulse rounded-xl bg-slate-200/60"></div>
+          </template>
+        </div>
+
+        <!-- Empty state -->
+        <div x-show="!loading && items.length === 0"
+             class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <p class="text-sm text-slate-500">No terms yet.</p>
+          <p class="mt-1 text-xs text-slate-400">
+            Create one (e.g. "First Term 2025/2026"), mark it current, then add its fees on the Setup screen.
+          </p>
+          <button @click="openCreate()"
+            class="btn-depress mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
+            <span class="text-base leading-none">＋</span> Create your first term
+          </button>
+        </div>
+
+        <!-- Terms list -->
+        <div x-show="!loading && items.length > 0"
+             class="grad-card overflow-hidden rounded-2xl bg-white shadow-sm">
+          <table class="min-w-full divide-y divide-slate-100">
+            <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th class="px-5 py-3">Term</th>
+                <th class="px-5 py-3">Dates</th>
+                <th class="px-5 py-3 text-center">Fee types</th>
+                <th class="px-5 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 text-sm">
+              <template x-for="t in items" :key="t.id">
+                <tr class="lift-row">
+                  <td class="px-5 py-3">
+                    <div class="flex items-center gap-2">
+                      <span class="font-medium text-slate-900" x-text="t.name"></span>
+                      <span x-show="t.is_current"
+                        class="inline-flex rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-600/20">
+                        Current
+                      </span>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3 text-slate-600" x-text="dateRange(t)"></td>
+                  <td class="px-5 py-3 text-center text-slate-600" x-text="t.fee_type_count"></td>
+                  <td class="px-5 py-3">
+                    <div class="flex items-center justify-end gap-1">
+                      <button x-show="!t.is_current" @click="setCurrent(t)"
+                        class="rounded-lg px-2 py-1 text-xs font-semibold text-brand-600 hover:bg-brand-50">
+                        Make current
+                      </button>
+                      <button @click="openEdit(t)"
+                        class="rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100">
+                        Edit
+                      </button>
+                      <button @click="remove(t)"
+                        class="rounded-lg px-2 py-1 text-xs font-semibold text-slate-400 hover:bg-rose-50 hover:text-rose-600">
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ============ CREATE / EDIT TERM MODAL ============ -->
+        <div x-show="formOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+             @keydown.escape.window="closeForm()">
+          <div class="absolute inset-0 bg-slate-900/40" @click="closeForm()"></div>
+          <div class="relative w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+               x-transition:enter="transition ease-out duration-200"
+               x-transition:enter-start="translate-y-8 opacity-0" x-transition:enter-end="translate-y-0 opacity-100">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-slate-900" x-text="editing ? 'Edit term' : 'New term'"></h2>
+              <button @click="closeForm()" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Term name</label>
+                <input x-model="form.name" type="text" placeholder="e.g. First Term 2025/2026"
+                  @keydown.enter="submitForm()"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-slate-700">Start date</label>
+                  <input x-model="form.start_date" type="date"
+                    class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+                </div>
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-slate-700">End date</label>
+                  <input x-model="form.end_date" type="date"
+                    class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+                </div>
+              </div>
+              <label x-show="!editing" class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" x-model="form.is_current"
+                  class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500/30" />
+                Make this the current term
+              </label>
+            </div>
+
+            <div class="mt-6 flex gap-3">
+              <button @click="closeForm()"
+                class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button @click="submitForm()" :disabled="submitting"
+                class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                <span x-show="!submitting" x-text="editing ? 'Save changes' : 'Create term'"></span>
+                <span x-show="submitting" x-cloak>Saving…</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ REPORTS ============================ -->
+      <section x-show="$store.app.screen === 'reports'" x-data="reports()">
+        <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 class="gradient-heading text-xl font-semibold">Term Reports</h1>
+            <p class="text-sm text-slate-500">A printable, shareable snapshot of how a term's money moved, or compare two terms side-by-side.</p>
+          </div>
+          <div class="inline-flex rounded-xl bg-slate-100 p-1">
+            <button @click="mode = 'single'"
+              :class="mode === 'single' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+              class="rounded-lg px-3 py-1.5 text-xs transition">
+              Single Term Report
+            </button>
+            <button @click="mode = 'compare'; if (!comparison) loadComparison();"
+              :class="mode === 'compare' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+              class="rounded-lg px-3 py-1.5 text-xs transition">
+              Term Comparison View
+            </button>
+          </div>
+        </div>
+
+        <!-- MODE SINGLE -->
+        <div x-show="mode === 'single'">
+          <!-- Term picker + downloads -->
+          <div class="grad-card mb-6 rounded-2xl bg-white p-4 shadow-sm">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div class="w-full sm:max-w-xs">
+                <label class="mb-1 block text-sm font-medium text-slate-700">Term</label>
+                <select x-model.number="termId" @change="load()"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                  <template x-if="terms.length === 0">
+                    <option value="">No terms yet</option>
+                  </template>
+                  <template x-for="t in terms" :key="t.id">
+                    <option :value="t.id" x-text="t.name + (t.is_current ? ' (current)' : '')"></option>
+                  </template>
+                </select>
+              </div>
+              <div class="flex items-center gap-2" x-show="report">
+                <a :href="`/api/v1/reports/terms/${termId}/export.pdf`" target="_blank" rel="noopener"
+                  class="btn-depress inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
+                  ⬇ PDF
+                </a>
+                <a :href="`/api/v1/reports/terms/${termId}/export.csv`" target="_blank" rel="noopener"
+                  class="btn-depress inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                  ⬇ CSV
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODE COMPARE -->
+        <div x-show="mode === 'compare'" x-cloak>
+          <!-- Term comparison picker -->
+          <div class="grad-card mb-6 rounded-2xl bg-white p-4 shadow-sm">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-end">
+              <div class="flex-1">
+                <label class="mb-1 block text-sm font-medium text-slate-700">Term A (Baseline)</label>
+                <select x-model.number="termId1" @change="loadComparison()"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                  <template x-for="t in terms" :key="'t1-'+t.id">
+                    <option :value="t.id" x-text="t.name + (t.is_current ? ' (current)' : '')"></option>
+                  </template>
+                </select>
+              </div>
+              <div class="hidden text-xl font-bold text-slate-400 sm:block mb-2">vs</div>
+              <div class="flex-1">
+                <label class="mb-1 block text-sm font-medium text-slate-700">Term B (Comparison)</label>
+                <select x-model.number="termId2" @change="loadComparison()"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                  <template x-for="t in terms" :key="'t2-'+t.id">
+                    <option :value="t.id" x-text="t.name + (t.is_current ? ' (current)' : '')"></option>
+                  </template>
+                </select>
+              </div>
+              <button @click="loadComparison()"
+                class="btn-depress rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
+                Compare
+              </button>
+            </div>
+          </div>
+
+          <!-- Comparison Loading -->
+          <div x-show="loadingComparison" class="p-10 text-center text-sm text-slate-400">Comparing terms…</div>
+
+          <!-- Comparison Results -->
+          <div x-show="!loadingComparison && comparison" class="space-y-6">
+            <div class="grad-card overflow-hidden rounded-2xl bg-white shadow-sm">
+              <div class="border-b border-slate-100 px-5 py-4">
+                <h2 class="text-base font-semibold text-slate-900">Side-by-Side Financial Summary</h2>
+              </div>
+              <table class="min-w-full divide-y divide-slate-100">
+                <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th class="px-5 py-3">Metric</th>
+                    <th class="px-5 py-3 text-right" x-text="comparison?.term1.term_name"></th>
+                    <th class="px-5 py-3 text-right" x-text="comparison?.term2.term_name"></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50 text-sm">
+                  <tr class="lift-row">
+                    <td class="px-5 py-3 font-medium text-slate-800">Total Expected Fees</td>
+                    <td class="px-5 py-3 text-right text-slate-700" x-text="comparison?.term1.total_expected_display"></td>
+                    <td class="px-5 py-3 text-right text-slate-700" x-text="comparison?.term2.total_expected_display"></td>
+                  </tr>
+                  <tr class="lift-row">
+                    <td class="px-5 py-3 font-medium text-slate-800">Total Collected</td>
+                    <td class="px-5 py-3 text-right font-semibold text-emerald-600" x-text="comparison?.term1.total_collected_display"></td>
+                    <td class="px-5 py-3 text-right font-semibold text-emerald-600" x-text="comparison?.term2.total_collected_display"></td>
+                  </tr>
+                  <tr class="lift-row">
+                    <td class="px-5 py-3 font-medium text-slate-800">Collection Rate</td>
+                    <td class="px-5 py-3 text-right font-semibold text-slate-900" x-text="comparison?.term1.collection_rate + '%'"></td>
+                    <td class="px-5 py-3 text-right font-semibold text-slate-900" x-text="comparison?.term2.collection_rate + '%'"></td>
+                  </tr>
+                  <tr class="lift-row">
+                    <td class="px-5 py-3 font-medium text-slate-800">Outstanding Balances</td>
+                    <td class="px-5 py-3 text-right text-slate-700" x-text="comparison?.term1.total_remaining_display"></td>
+                    <td class="px-5 py-3 text-right text-slate-700" x-text="comparison?.term2.total_remaining_display"></td>
+                  </tr>
+                  <tr class="lift-row bg-slate-50/50">
+                    <td class="px-5 py-3 font-medium text-slate-800">Total School Expenses</td>
+                    <td class="px-5 py-3 text-right text-rose-600" x-text="comparison?.term1.total_expenses_display"></td>
+                    <td class="px-5 py-3 text-right text-rose-600" x-text="comparison?.term2.total_expenses_display"></td>
+                  </tr>
+                  <tr class="lift-row bg-slate-50/80">
+                    <td class="px-5 py-3 font-semibold text-slate-900">Net Available Funds</td>
+                    <td class="px-5 py-3 text-right font-bold text-brand-600" x-text="comparison?.term1.net_available_display"></td>
+                    <td class="px-5 py-3 text-right font-bold text-brand-600" x-text="comparison?.term2.net_available_display"></td>
+                  </tr>
+                  <tr class="lift-row">
+                    <td class="px-5 py-3 font-medium text-slate-800">Enrolled Students</td>
+                    <td class="px-5 py-3 text-right text-slate-700" x-text="comparison?.term1.students_total"></td>
+                    <td class="px-5 py-3 text-right text-slate-700" x-text="comparison?.term2.students_total"></td>
+                  </tr>
+                  <tr class="lift-row">
+                    <td class="px-5 py-3 font-medium text-slate-800">Paid / Partial / Unpaid</td>
+                    <td class="px-5 py-3 text-right text-xs text-slate-600"
+                        x-text="`${comparison?.term1.students_paid} paid · ${comparison?.term1.students_partial} partial · ${comparison?.term1.students_unpaid} unpaid`"></td>
+                    <td class="px-5 py-3 text-right text-xs text-slate-600"
+                        x-text="`${comparison?.term2.students_paid} paid · ${comparison?.term2.students_partial} partial · ${comparison?.term2.students_unpaid} unpaid`"></td>
+                  </tr>
+                  <tr class="lift-row">
+                    <td class="px-5 py-3 font-medium text-slate-800">Paystack (Online) Payments</td>
+                    <td class="px-5 py-3 text-right text-slate-700" x-text="`${comparison?.term1.channels.online_count} (${comparison?.term1.channels.online_amount_display})`"></td>
+                    <td class="px-5 py-3 text-right text-slate-700" x-text="`${comparison?.term2.channels.online_count} (${comparison?.term2.channels.online_amount_display})`"></td>
+                  </tr>
+                  <tr class="lift-row">
+                    <td class="px-5 py-3 font-medium text-slate-800">Manual (Cash/POS/Transfer) Payments</td>
+                    <td class="px-5 py-3 text-right text-slate-700" x-text="`${comparison?.term1.channels.manual_count} (${comparison?.term1.channels.manual_amount_display})`"></td>
+                    <td class="px-5 py-3 text-right text-slate-700" x-text="`${comparison?.term2.channels.manual_count} (${comparison?.term2.channels.manual_amount_display})`"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- Loading -->
+        <div x-show="loading" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <template x-for="i in 4" :key="i">
+            <div class="h-24 animate-pulse rounded-2xl bg-slate-200/60"></div>
+          </template>
+        </div>
+
+        <!-- Empty state -->
+        <div x-show="!loading && !report"
+             class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <p class="text-sm text-slate-500">Pick a term to see its report.</p>
+          <p x-show="terms.length === 0" class="mt-1 text-xs text-slate-400">
+            No terms exist yet — create one on the Terms screen first.
+          </p>
+        </div>
+
+        <!-- Report preview -->
+        <div x-show="!loading && report" x-cloak class="space-y-6">
+          <!-- Headline totals -->
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="tilt-card grad-card rounded-2xl bg-white p-5 shadow-sm">
+              <p class="text-sm text-slate-500">Expected</p>
+              <p class="mt-2 text-2xl font-bold text-slate-900" x-text="report.totals.total_expected_display"></p>
+            </div>
+            <div class="tilt-card grad-card rounded-2xl bg-white p-5 shadow-sm">
+              <p class="text-sm text-slate-500">Collected</p>
+              <p class="mt-2 text-2xl font-bold text-emerald-600" x-text="report.totals.total_collected_display"></p>
+              <p class="mt-1 text-xs text-slate-400"><span x-text="report.totals.collection_rate"></span>% collection rate</p>
+            </div>
+            <div class="tilt-card grad-card rounded-2xl bg-white p-5 shadow-sm">
+              <p class="text-sm text-slate-500">Outstanding</p>
+              <p class="mt-2 text-2xl font-bold text-slate-700" x-text="report.totals.total_remaining_display"></p>
+            </div>
+            <div class="tilt-card grad-card rounded-2xl bg-white p-5 shadow-sm">
+              <p class="text-sm text-slate-500">Overpaid</p>
+              <p class="mt-2 text-2xl font-bold text-accent-600" x-text="report.totals.total_overpaid_display"></p>
+            </div>
+          </div>
+
+          <!-- Student status strip -->
+          <div class="grad-card rounded-2xl bg-white p-5 shadow-sm">
+            <p class="mb-3 text-sm font-semibold text-slate-700">Students (<span x-text="report.totals.students_total"></span> with fees this term)</p>
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div class="rounded-xl bg-emerald-50 p-3 text-center">
+                <p class="text-lg font-bold text-emerald-700" x-text="report.totals.students_paid"></p>
+                <p class="text-xs text-emerald-600">Paid</p>
+              </div>
+              <div class="rounded-xl bg-amber-50 p-3 text-center">
+                <p class="text-lg font-bold text-amber-700" x-text="report.totals.students_partial"></p>
+                <p class="text-xs text-amber-600">Partial</p>
+              </div>
+              <div class="rounded-xl bg-rose-50 p-3 text-center">
+                <p class="text-lg font-bold text-rose-700" x-text="report.totals.students_unpaid"></p>
+                <p class="text-xs text-rose-600">Unpaid</p>
+              </div>
+              <div class="rounded-xl bg-sky-50 p-3 text-center">
+                <p class="text-lg font-bold text-sky-700" x-text="report.totals.students_overpaid"></p>
+                <p class="text-xs text-sky-600">Overpaid</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- By fee category -->
+          <div class="grad-card overflow-hidden rounded-2xl bg-white shadow-sm">
+            <div class="border-b border-slate-100 px-5 py-3">
+              <h2 class="text-sm font-semibold text-slate-700">By fee category</h2>
+            </div>
+            <table class="min-w-full divide-y divide-slate-100">
+              <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th class="px-5 py-2.5">Category</th>
+                  <th class="px-5 py-2.5 text-right">Expected</th>
+                  <th class="px-5 py-2.5 text-right">Collected</th>
+                  <th class="px-5 py-2.5 text-right">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-50 text-sm">
+                <template x-for="c in report.categories" :key="c.category_name">
+                  <tr class="lift-row">
+                    <td class="px-5 py-2.5 font-medium text-slate-800" x-text="c.category_name"></td>
+                    <td class="px-5 py-2.5 text-right text-slate-600" x-text="c.expected_display"></td>
+                    <td class="px-5 py-2.5 text-right text-emerald-600" x-text="c.collected_display"></td>
+                    <td class="px-5 py-2.5 text-right text-slate-600" x-text="c.remaining_display"></td>
+                  </tr>
+                </template>
+                <tr x-show="report.categories.length === 0">
+                  <td colspan="4" class="px-5 py-4 text-center text-sm text-slate-400">No fee categories for this term.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- By class -->
+          <div class="grad-card overflow-hidden rounded-2xl bg-white shadow-sm">
+            <div class="border-b border-slate-100 px-5 py-3">
+              <h2 class="text-sm font-semibold text-slate-700">By class</h2>
+            </div>
+            <table class="min-w-full divide-y divide-slate-100">
+              <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th class="px-5 py-2.5">Section</th>
+                  <th class="px-5 py-2.5">Class</th>
+                  <th class="px-5 py-2.5 text-center">Students</th>
+                  <th class="px-5 py-2.5 text-right">Expected</th>
+                  <th class="px-5 py-2.5 text-right">Collected</th>
+                  <th class="px-5 py-2.5 text-right">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-50 text-sm">
+                <template x-for="(c, i) in report.classes" :key="i">
+                  <tr class="lift-row">
+                    <td class="px-5 py-2.5 text-slate-500" x-text="c.section"></td>
+                    <td class="px-5 py-2.5 font-medium text-slate-800" x-text="c.class_name"></td>
+                    <td class="px-5 py-2.5 text-center text-slate-600" x-text="c.students"></td>
+                    <td class="px-5 py-2.5 text-right text-slate-600" x-text="c.expected_display"></td>
+                    <td class="px-5 py-2.5 text-right text-emerald-600" x-text="c.collected_display"></td>
+                    <td class="px-5 py-2.5 text-right text-slate-600" x-text="c.remaining_display"></td>
+                  </tr>
+                </template>
+                <tr x-show="report.classes.length === 0">
+                  <td colspan="6" class="px-5 py-4 text-center text-sm text-slate-400">No class data for this term.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- By payment method -->
+          <div class="grad-card overflow-hidden rounded-2xl bg-white shadow-sm">
+            <div class="border-b border-slate-100 px-5 py-3">
+              <h2 class="text-sm font-semibold text-slate-700">By payment method</h2>
+            </div>
+            <div class="grid grid-cols-1 gap-3 px-5 py-4 sm:grid-cols-2">
+              <div class="rounded-xl bg-brand-50 p-3">
+                <p class="text-xs font-semibold uppercase tracking-wide text-brand-600">Online (Paystack)</p>
+                <p class="mt-1 text-lg font-bold text-slate-900" x-text="report.channels.online_amount_display"></p>
+                <p class="text-xs text-slate-500"><span x-text="report.channels.online_count"></span> payment(s)</p>
+              </div>
+              <div class="rounded-xl bg-slate-50 p-3">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Manual (cash/POS/transfer)</p>
+                <p class="mt-1 text-lg font-bold text-slate-900" x-text="report.channels.manual_amount_display"></p>
+                <p class="text-xs text-slate-500"><span x-text="report.channels.manual_count"></span> payment(s)</p>
+              </div>
+            </div>
+            <table class="min-w-full divide-y divide-slate-100">
+              <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th class="px-5 py-2.5">Method</th>
+                  <th class="px-5 py-2.5 text-center">Payments</th>
+                  <th class="px-5 py-2.5 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-50 text-sm">
+                <template x-for="m in report.methods" :key="m.method">
+                  <tr class="lift-row">
+                    <td class="px-5 py-2.5 font-medium text-slate-800" x-text="m.label"></td>
+                    <td class="px-5 py-2.5 text-center text-slate-600" x-text="m.count"></td>
+                    <td class="px-5 py-2.5 text-right text-slate-600" x-text="m.amount_display"></td>
+                  </tr>
+                </template>
+                <tr x-show="report.methods.length === 0">
+                  <td colspan="3" class="px-5 py-4 text-center text-sm text-slate-400">No payments recorded for this term yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Reminder activity -->
+          <div class="grad-card rounded-2xl bg-white p-5 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-700">Reminder activity</h2>
+            <p class="mt-2 text-2xl font-bold text-slate-900"><span x-text="report.reminders.reminders_sent"></span> <span class="text-base font-medium text-slate-500">sent</span></p>
+            <p class="mt-1 text-xs text-slate-400" x-text="report.reminders.note"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- ==================== EXPENSES SCREEN ==================== -->
+      <!-- ========================================================= -->
+      <!--
+        Money going OUT (fuel, repairs, textbooks, "Nepa Light", ...). Visible to
+        and recordable by every admin; each row is stamped with who recorded it.
+        Expenses reduce the school's Net Available on the Dashboard — they never
+        touch any student's fee balance.
+      -->
+      <section x-show="$store.app.screen === 'expenses'" x-data="expenses()">
+        <div class="mb-5 flex items-center justify-between">
+          <div>
+            <h1 class="gradient-heading text-xl font-semibold">Expenses</h1>
+            <p class="text-sm text-slate-500">Money the school spends. Reduces Net Available on the dashboard — never a student's fees.</p>
+          </div>
+          <button @click="openCreate()"
+            class="btn-depress inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
+            <span class="text-base leading-none">＋</span> Record expense
+          </button>
+        </div>
+
+        <!-- Total spent summary line -->
+        <div x-show="!loading" class="grad-card mb-6 rounded-2xl bg-white p-4 shadow-sm">
+          <div class="flex items-center justify-between">
+            <p class="text-sm text-slate-500">Total spent<span x-show="filterCategory"> · <span x-text="filterCategory"></span></span></p>
+            <p class="text-lg font-bold text-rose-600" x-text="totalDisplay"></p>
+          </div>
+        </div>
+
+        <!-- Category filter -->
+        <div x-show="!loading" class="mb-4 flex flex-wrap gap-2">
+          <button @click="setFilter('')"
+            :class="filterCategory === '' ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'"
+            class="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold transition">All</button>
+          <template x-for="cat in categories" :key="cat">
+            <button @click="setFilter(cat)"
+              :class="filterCategory === cat ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'"
+              class="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold transition" x-text="cat"></button>
+          </template>
+        </div>
+
+        <!-- Loading -->
+        <div x-show="loading" class="space-y-2">
+          <template x-for="i in 3" :key="i">
+            <div class="h-16 animate-pulse rounded-xl bg-slate-200/60"></div>
+          </template>
+        </div>
+
+        <!-- Empty state -->
+        <div x-show="!loading && items.length === 0"
+             class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <p class="text-sm text-slate-500">No expenses recorded yet.</p>
+          <p class="mt-1 text-xs text-slate-400">Record what the school spends — fuel, repairs, textbooks, electricity — to track net funds.</p>
+          <button @click="openCreate()"
+            class="btn-depress mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
+            <span class="text-base leading-none">＋</span> Record your first expense
+          </button>
+        </div>
+
+        <!-- Expenses table -->
+        <div x-show="!loading && items.length > 0"
+             class="grad-card overflow-hidden rounded-2xl bg-white shadow-sm">
+          <table class="min-w-full divide-y divide-slate-100">
+            <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th class="px-5 py-3">Date</th>
+                <th class="px-5 py-3">Category</th>
+                <th class="px-5 py-3">Purpose</th>
+                <th class="px-5 py-3 text-right">Amount</th>
+                <th class="px-5 py-3">Recorded by</th>
+                <th class="px-5 py-3">Ref / Note</th>
+                <th class="px-5 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 text-sm">
+              <template x-for="e in items" :key="e.id">
+                <tr class="lift-row">
+                  <td class="px-5 py-3 whitespace-nowrap text-slate-600" x-text="fmtDate(e.expense_date)"></td>
+                  <td class="px-5 py-3">
+                    <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700" x-text="e.category"></span>
+                  </td>
+                  <td class="px-5 py-3 text-slate-900" x-text="e.purpose"></td>
+                  <td class="px-5 py-3 text-right font-medium text-rose-600" x-text="e.amount_display"></td>
+                  <td class="px-5 py-3 text-slate-500" x-text="e.created_by_email || '—'"></td>
+                  <td class="px-5 py-3 text-slate-500">
+                    <span x-show="e.receipt_ref" class="text-xs" x-text="e.receipt_ref"></span>
+                    <span x-show="e.note" class="block text-xs text-slate-400" x-text="e.note"></span>
+                    <span x-show="!e.receipt_ref && !e.note">—</span>
+                  </td>
+                  <td class="px-5 py-3">
+                    <div class="flex items-center justify-end gap-1">
+                      <button @click="openEdit(e)"
+                        class="rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100">Edit</button>
+                      <button @click="remove(e)"
+                        class="rounded-lg px-2 py-1 text-xs font-semibold text-slate-400 hover:bg-rose-50 hover:text-rose-600">Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ============ CREATE / EDIT EXPENSE MODAL ============ -->
+        <div x-show="formOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+             @keydown.escape.window="closeForm()">
+          <div class="absolute inset-0 bg-slate-900/40" @click="closeForm()"></div>
+          <div class="relative w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+               x-transition:enter="transition ease-out duration-200"
+               x-transition:enter-start="translate-y-8 opacity-0" x-transition:enter-end="translate-y-0 opacity-100">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-slate-900" x-text="editing ? 'Edit expense' : 'Record expense'"></h2>
+              <button @click="closeForm()" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+
+            <div class="space-y-4">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-slate-700">Category</label>
+                  <select x-model="form.category"
+                    class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                    <template x-for="cat in categories" :key="cat">
+                      <option :value="cat" x-text="cat"></option>
+                    </template>
+                  </select>
+                </div>
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-slate-700">Amount (₦)</label>
+                  <input x-model.number="form.amount_naira" type="number" min="0" step="0.01" placeholder="15000"
+                    class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+                </div>
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Purpose</label>
+                <input x-model="form.purpose" type="text" placeholder="e.g. Generator repair"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Date</label>
+                <input x-model="form.expense_date" type="date"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Receipt ref <span class="text-slate-400">(optional)</span></label>
+                <input x-model="form.receipt_ref" type="text" placeholder="Vendor slip / receipt number"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Note <span class="text-slate-400">(optional)</span></label>
+                <textarea x-model="form.note" rows="2" placeholder="Any extra detail"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"></textarea>
+              </div>
+            </div>
+
+            <div class="mt-6 flex gap-3">
+              <button @click="closeForm()"
+                class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button @click="submitForm()" :disabled="submitting"
+                class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                <span x-show="!submitting" x-text="editing ? 'Save changes' : 'Record expense'"></span>
+                <span x-show="submitting" x-cloak>Saving…</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- ============= PAYROLL & STAFF MANAGEMENT ================ -->
+      <!-- ========================================================= -->
+      <section x-show="$store.app.screen === 'payroll'" x-data="payroll()">
+        <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 class="gradient-heading text-xl font-semibold">Staff Payroll & Directory 🔒</h1>
+            <p class="text-sm text-slate-500">Manage staff profiles, bank details, term salary schedules, payouts, and term comparisons.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button @click="openAddStaff()"
+              class="btn-depress inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+              <span class="text-base leading-none">＋</span> Add Staff Member
+            </button>
+            <button @click="openSalarySetup()"
+              class="btn-depress inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
+              <span class="text-base leading-none">⚙️</span> Assign Term Salary
+            </button>
+          </div>
+        </div>
+
+        <!-- Sub-navigation Tabs -->
+        <div class="mb-5 flex border-b border-slate-200 gap-6 text-sm font-semibold">
+          <button @click="subTab = 'overview'"
+            :class="subTab === 'overview' ? 'border-b-2 border-brand-600 text-brand-700 pb-2.5' : 'text-slate-500 hover:text-slate-800 pb-2.5'">
+            📊 Payroll Dashboard & Payouts
+          </button>
+          <button @click="subTab = 'staff'"
+            :class="subTab === 'staff' ? 'border-b-2 border-brand-600 text-brand-700 pb-2.5' : 'text-slate-500 hover:text-slate-800 pb-2.5'">
+            👨‍🏫 Staff Directory & Bank Details (<span x-text="staffList.length"></span>)
+          </button>
+          <button @click="subTab = 'compare'"
+            :class="subTab === 'compare' ? 'border-b-2 border-brand-600 text-brand-700 pb-2.5' : 'text-slate-500 hover:text-slate-800 pb-2.5'">
+            📈 Term Comparison View
+          </button>
+        </div>
+
+        <!-- SUB-TAB 1: OVERVIEW & PAYOUTS -->
+        <div x-show="subTab === 'overview'">
+          <!-- Filter Bar -->
+          <div class="grad-card mb-5 rounded-2xl bg-white p-4 shadow-sm">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Academic Term</label>
+                <select x-model="termId" @change="loadSummary()"
+                  class="w-full rounded-xl border border-slate-200 py-1.5 px-3 text-sm focus:border-brand-500 focus:outline-none">
+                  <template x-for="t in terms" :key="t.id">
+                    <option :value="t.id" x-text="t.name + (t.is_current ? ' (Current)' : '')"></option>
+                  </template>
+                </select>
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Class Taught</label>
+                <select x-model="filters.class_taught" @change="loadSummary()"
+                  class="w-full rounded-xl border border-slate-200 py-1.5 px-3 text-sm focus:border-brand-500 focus:outline-none">
+                  <option value="">All Classes</option>
+                  <template x-for="c in Object.values(SECTION_CLASSES).flat()" :key="c">
+                    <option :value="c" x-text="c"></option>
+                  </template>
+                </select>
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Staff Role</label>
+                <input x-model="filters.staff_role" @input.debounce.300ms="loadSummary()" type="text" placeholder="Teacher, Driver..."
+                  class="w-full rounded-xl border border-slate-200 py-1.5 px-3 text-sm focus:border-brand-500 focus:outline-none" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Payment Status</label>
+                <select x-model="filters.payment_status" @change="loadSummary()"
+                  class="w-full rounded-xl border border-slate-200 py-1.5 px-3 text-sm focus:border-brand-500 focus:outline-none">
+                  <option value="">All Statuses</option>
+                  <option value="paid">Fully Paid</option>
+                  <option value="partial">Partially Paid</option>
+                  <option value="unpaid">Unpaid</option>
+                </select>
+              </div>
+              <div class="flex items-end">
+                <button @click="downloadReportPdf()"
+                  class="btn-depress w-full inline-flex items-center justify-center gap-1 rounded-xl border border-brand-200 bg-brand-50 py-1.5 px-3 text-xs font-semibold text-brand-700 hover:bg-brand-100">
+                  📄 Print Term PDF Report
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Loading -->
+          <div x-show="loading" class="space-y-2">
+            <template x-for="i in 3" :key="i">
+              <div class="h-16 animate-pulse rounded-xl bg-slate-200/60"></div>
+            </template>
+          </div>
+
+          <!-- Summary Headline Cards -->
+          <div x-show="!loading && summary" class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="grad-card rounded-2xl bg-white p-4 shadow-sm">
+              <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Total Staff Scheduled</p>
+              <p class="mt-1 text-2xl font-bold text-slate-900" x-text="summary?.total_scheduled_display"></p>
+              <p class="mt-1 text-xs text-slate-500" x-text="summary?.total_staff + ' active staff members'"></p>
+            </div>
+            <div class="grad-card rounded-2xl bg-white p-4 shadow-sm">
+              <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Total Paid Out</p>
+              <p class="mt-1 text-2xl font-bold text-emerald-600" x-text="summary?.total_paid_display"></p>
+              <p class="mt-1 text-xs text-slate-500" x-text="summary?.staff_paid_count + ' fully paid'"></p>
+            </div>
+            <div class="grad-card rounded-2xl bg-white p-4 shadow-sm">
+              <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Total Outstanding</p>
+              <p class="mt-1 text-2xl font-bold text-amber-600" x-text="summary?.total_remaining_display"></p>
+              <p class="mt-1 text-xs text-slate-500" x-text="summary?.staff_unpaid_count + ' unpaid / ' + summary?.staff_partial_count + ' partial'"></p>
+            </div>
+            <div class="grad-card rounded-2xl bg-white p-4 shadow-sm">
+              <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Completion Rate</p>
+              <p class="mt-1 text-2xl font-bold text-brand-600" x-text="summary?.completion_rate + '%'"></p>
+              <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                <div class="h-full bg-brand-600 transition-all duration-500" :style="'width: ' + summary?.completion_rate + '%'"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty state -->
+          <div x-show="!loading && summary?.records.length === 0"
+               class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+            <p class="text-sm text-slate-500">No staff payroll records found for this filter.</p>
+            <button @click="openSalarySetup()"
+              class="btn-depress mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+              <span class="text-base leading-none">＋</span> Schedule Salary for Staff
+            </button>
+          </div>
+
+          <!-- Payroll Table -->
+          <div x-show="!loading && summary?.records.length > 0"
+               class="grad-card overflow-hidden rounded-2xl bg-white shadow-sm">
+            <table class="min-w-full divide-y divide-slate-100">
+              <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th class="px-4 py-3">Staff Member</th>
+                  <th class="px-4 py-3">Role</th>
+                  <th class="px-4 py-3">Classes</th>
+                  <th class="px-4 py-3 text-right">Scheduled</th>
+                  <th class="px-4 py-3 text-right">Paid Out</th>
+                  <th class="px-4 py-3 text-right">Outstanding</th>
+                  <th class="px-4 py-3">Status</th>
+                  <th class="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-50 text-sm">
+                <template x-for="r in summary?.records" :key="r.id">
+                  <tr class="lift-row">
+                    <td class="px-4 py-3 font-semibold text-slate-900">
+                      <span x-text="r.staff_name"></span>
+                      <p class="text-xs text-slate-400 font-normal" x-text="r.phone_number"></p>
+                    </td>
+                    <td class="px-4 py-3 text-slate-600" x-text="r.role_title"></td>
+                    <td class="px-4 py-3 text-xs text-slate-500">
+                      <template x-for="c in r.classes_taught" :key="c">
+                        <span class="mr-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-slate-700" x-text="c"></span>
+                      </template>
+                    </td>
+                    <td class="px-4 py-3 text-right font-medium text-slate-900" x-text="r.amount_scheduled_display"></td>
+                    <td class="px-4 py-3 text-right font-bold text-emerald-600" x-text="r.amount_paid_display"></td>
+                    <td class="px-4 py-3 text-right font-semibold text-amber-600" x-text="r.remaining_display"></td>
+                    <td class="px-4 py-3">
+                      <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                            :class="r.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : (r.status === 'partial' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700')"
+                            x-text="r.status.toUpperCase()"></span>
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                      <div class="flex items-center justify-end gap-1.5">
+                        <button @click="openPayout(r)"
+                                class="rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100">
+                          💳 Record Payout
+                        </button>
+                        <template x-if="r.payouts && r.payouts.length > 0">
+                          <a :href="'/api/v1/payroll/' + r.payouts[0].id + '/payslip'" target="_blank"
+                             class="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                             title="Download latest payslip PDF">
+                            📄 PDF
+                          </a>
+                        </template>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SUB-TAB 2: STAFF DIRECTORY & BANK DETAILS -->
+        <div x-show="subTab === 'staff'">
+          <div class="mb-4 flex items-center justify-between">
+            <h2 class="text-base font-semibold text-slate-900">Staff Roster & Bank Accounts</h2>
+            <button @click="openAddStaff()"
+              class="btn-depress inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
+              <span class="text-base leading-none">＋</span> Add Staff Member
+            </button>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <template x-for="s in staffList" :key="s.id">
+              <div class="grad-card relative rounded-2xl bg-white p-5 shadow-sm border border-slate-100">
+                <div class="mb-3 flex items-start justify-between">
+                  <div>
+                    <h3 class="font-bold text-slate-900 text-base" x-text="s.full_name"></h3>
+                    <span class="inline-block rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700" x-text="s.role_title"></span>
+                  </div>
+                  <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold"
+                        :class="s.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'"
+                        x-text="s.is_active ? 'Active' : 'Inactive'"></span>
+                </div>
+
+                <div class="space-y-1.5 text-xs text-slate-600 mb-4">
+                  <p>📞 Phone: <span class="font-semibold text-slate-800" x-text="s.phone_number"></span></p>
+                  <p x-show="s.email">✉️ Email: <span class="text-slate-800" x-text="s.email"></span></p>
+                  <div class="mt-2 rounded-xl bg-slate-50 p-2.5 text-xs">
+                    <p class="font-semibold text-slate-700">🏦 Bank Details:</p>
+                    <p class="text-slate-600" x-text="s.bank_name ? s.bank_name + ' — ' + s.account_number : 'No bank details entered'"></p>
+                    <p x-show="s.account_name" class="text-slate-500 text-[11px]" x-text="'Name: ' + s.account_name"></p>
+                  </div>
+                  <div class="mt-2">
+                    <p class="font-semibold text-slate-700">🏫 Classes Taught:</p>
+                    <div class="flex flex-wrap gap-1 mt-1">
+                      <template x-for="c in s.classes_taught" :key="c">
+                        <span class="rounded bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-700" x-text="c"></span>
+                      </template>
+                      <span x-show="!s.classes_taught || s.classes_taught.length === 0" class="text-slate-400 italic">None assigned</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                  <button @click="openEditStaff(s)" class="rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100">Edit</button>
+                  <button @click="promptDeleteStaff(s)" class="rounded-lg px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">Deactivate</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- SUB-TAB 3: TERM COMPARISON -->
+        <div x-show="subTab === 'compare'">
+          <div class="grad-card mb-6 rounded-2xl bg-white p-5 shadow-sm">
+            <h2 class="text-base font-semibold text-slate-900 mb-2">Compare Staff Payroll Across Terms</h2>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div class="flex-1">
+                <label class="mb-1 block text-xs font-medium text-slate-500">First Term (Baseline)</label>
+                <select x-model="compareForm.term_id_1" class="w-full rounded-xl border border-slate-200 py-2 px-3 text-sm focus:border-brand-500 focus:outline-none">
+                  <template x-for="t in terms" :key="t.id">
+                    <option :value="t.id" x-text="t.name"></option>
+                  </template>
+                </select>
+              </div>
+              <div class="flex-1">
+                <label class="mb-1 block text-xs font-medium text-slate-500">Second Term (Comparison)</label>
+                <select x-model="compareForm.term_id_2" class="w-full rounded-xl border border-slate-200 py-2 px-3 text-sm focus:border-brand-500 focus:outline-none">
+                  <template x-for="t in terms" :key="t.id">
+                    <option :value="t.id" x-text="t.name"></option>
+                  </template>
+                </select>
+              </div>
+              <button @click="runComparison()" class="btn-depress rounded-xl bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+                Compare Terms
+              </button>
+            </div>
+          </div>
+
+          <div x-show="comparisonResult" class="grad-card overflow-hidden rounded-2xl bg-white p-5 shadow-sm">
+            <table class="min-w-full divide-y divide-slate-100 text-sm">
+              <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th class="px-4 py-3">Metric</th>
+                  <th class="px-4 py-3 text-right" x-text="comparisonResult?.term1.term_name"></th>
+                  <th class="px-4 py-3 text-right" x-text="comparisonResult?.term2.term_name"></th>
+                  <th class="px-4 py-3 text-right">Net Change</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr>
+                  <td class="px-4 py-3 font-semibold text-slate-900">Total Staff Scheduled</td>
+                  <td class="px-4 py-3 text-right" x-text="comparisonResult?.term1.total_staff"></td>
+                  <td class="px-4 py-3 text-right" x-text="comparisonResult?.term2.total_staff"></td>
+                  <td class="px-4 py-3 text-right font-medium" x-text="(comparisonResult?.term2.total_staff - comparisonResult?.term1.total_staff)"></td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-3 font-semibold text-slate-900">Scheduled Salary Total</td>
+                  <td class="px-4 py-3 text-right" x-text="comparisonResult?.term1.total_scheduled_display"></td>
+                  <td class="px-4 py-3 text-right" x-text="comparisonResult?.term2.total_scheduled_display"></td>
+                  <td class="px-4 py-3 text-right font-bold text-brand-600" x-text="nairaFromKobo(comparisonResult?.scheduled_change_kobo)"></td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-3 font-semibold text-slate-900">Total Paid Out</td>
+                  <td class="px-4 py-3 text-right font-semibold text-emerald-600" x-text="comparisonResult?.term1.total_paid_display"></td>
+                  <td class="px-4 py-3 text-right font-semibold text-emerald-600" x-text="comparisonResult?.term2.total_paid_display"></td>
+                  <td class="px-4 py-3 text-right font-bold text-emerald-600" x-text="nairaFromKobo(comparisonResult?.paid_change_kobo)"></td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-3 font-semibold text-slate-900">Completion Rate (%)</td>
+                  <td class="px-4 py-3 text-right" x-text="comparisonResult?.term1.completion_rate + '%'"></td>
+                  <td class="px-4 py-3 text-right" x-text="comparisonResult?.term2.completion_rate + '%'"></td>
+                  <td class="px-4 py-3 text-right font-bold" x-text="(comparisonResult?.completion_rate_change >= 0 ? '+' : '') + comparisonResult?.completion_rate_change + '%'"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- MODAL: ADD / EDIT STAFF -->
+        <div x-show="staffModalOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+             @keydown.escape.window="staffModalOpen = false">
+          <div class="absolute inset-0 bg-slate-900/40" @click="staffModalOpen = false"></div>
+          <div class="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-slate-900" x-text="editingStaff ? 'Edit Staff Member' : 'Add New Staff Member'"></h2>
+              <button @click="staffModalOpen = false" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+
+            <div class="space-y-4 text-sm">
+              <div>
+                <label class="mb-1 block font-medium text-slate-700">Full Name *</label>
+                <input x-model="staffForm.full_name" type="text" placeholder="e.g. Mr. Clement Udoh"
+                  class="w-full rounded-xl border border-slate-200 py-2 px-3 focus:border-brand-500 focus:outline-none" />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="mb-1 block font-medium text-slate-700">Role / Title *</label>
+                  <input x-model="staffForm.role_title" type="text" placeholder="Teacher, Bus Driver..."
+                    class="w-full rounded-xl border border-slate-200 py-2 px-3 focus:border-brand-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="mb-1 block font-medium text-slate-700">Phone Number *</label>
+                  <input x-model="staffForm.phone_number" type="text" placeholder="08012345678"
+                    class="w-full rounded-xl border border-slate-200 py-2 px-3 focus:border-brand-500 focus:outline-none" />
+                </div>
+              </div>
+              <div>
+                <label class="mb-1 block font-medium text-slate-700">Email Address (Optional)</label>
+                <input x-model="staffForm.email" type="email" placeholder="clement@jummikville.sch"
+                  class="w-full rounded-xl border border-slate-200 py-2 px-3 focus:border-brand-500 focus:outline-none" />
+              </div>
+              <div class="border-t border-slate-100 pt-3">
+                <p class="font-semibold text-slate-800 mb-2">🏦 Bank Details (Director View Only)</p>
+                <div class="space-y-3">
+                  <input x-model="staffForm.bank_name" type="text" placeholder="Bank Name (e.g. Access Bank)"
+                    class="w-full rounded-xl border border-slate-200 py-2 px-3 focus:border-brand-500 focus:outline-none" />
+                  <div class="grid grid-cols-2 gap-3">
+                    <input x-model="staffForm.account_number" type="text" placeholder="Account Number (10 digits)"
+                      class="w-full rounded-xl border border-slate-200 py-2 px-3 focus:border-brand-500 focus:outline-none" />
+                    <input x-model="staffForm.account_name" type="text" placeholder="Account Name"
+                      class="w-full rounded-xl border border-slate-200 py-2 px-3 focus:border-brand-500 focus:outline-none" />
+                  </div>
+                </div>
+              </div>
+              <div class="border-t border-slate-100 pt-3">
+                <label class="mb-1 block font-semibold text-slate-800">🏫 Classes Taught (Select multiple)</label>
+                <div class="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-2 bg-slate-50 rounded-xl">
+                  <template x-for="c in Object.values(SECTION_CLASSES).flat()" :key="c">
+                    <button type="button" @click="toggleStaffClass(c)"
+                      :class="staffForm.classes_taught.includes(c) ? 'bg-brand-600 text-white' : 'bg-white text-slate-700 border border-slate-200'"
+                      class="rounded-lg px-2.5 py-1 text-xs font-semibold transition" x-text="c"></button>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-6 flex gap-3">
+              <button @click="staffModalOpen = false" class="flex-1 rounded-xl border border-slate-200 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button @click="saveStaff()" :disabled="submitting" class="flex-1 rounded-xl bg-brand-600 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">Save Staff</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODAL: DELETE / DEACTIVATE CONFIRMATION -->
+        <div x-show="deleteModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-slate-900/40" @click="deleteModalOpen = false"></div>
+          <div class="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl text-center">
+            <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-600 text-xl font-bold">⚠️</div>
+            <h3 class="text-base font-bold text-slate-900">Deactivate Staff Member?</h3>
+            <p class="mt-2 text-xs text-slate-600" x-text="'Are you sure you want to deactivate ' + staffToDelete?.full_name + '?'"></p>
+            <p class="mt-1 text-[11px] text-slate-400">All historical payroll records will be preserved for audit and term comparison purposes.</p>
+            <div class="mt-5 flex gap-3">
+              <button @click="deleteModalOpen = false" class="flex-1 rounded-xl border border-slate-200 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button @click="confirmDeleteStaff()" :disabled="submitting" class="flex-1 rounded-xl bg-rose-600 py-2 text-xs font-semibold text-white hover:bg-rose-700">Confirm Deactivation</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODAL: SALARY SETUP -->
+        <div x-show="salaryModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-slate-900/40" @click="salaryModalOpen = false"></div>
+          <div class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 class="text-base font-semibold text-slate-900 mb-4">Assign Staff Term Salary</h3>
+            <div class="space-y-3 text-sm">
+              <div>
+                <label class="mb-1 block font-medium text-slate-700">Staff Member</label>
+                <select x-model="salaryForm.staff_id" class="w-full rounded-xl border border-slate-200 py-2 px-3 text-sm">
+                  <template x-for="s in staffList" :key="s.id">
+                    <option :value="s.id" x-text="s.full_name + ' (' + s.role_title + ')'"></option>
+                  </template>
+                </select>
+              </div>
+              <div>
+                <label class="mb-1 block font-medium text-slate-700">Term</label>
+                <select x-model="salaryForm.term_id" class="w-full rounded-xl border border-slate-200 py-2 px-3 text-sm">
+                  <template x-for="t in terms" :key="t.id">
+                    <option :value="t.id" x-text="t.name"></option>
+                  </template>
+                </select>
+              </div>
+              <div>
+                <label class="mb-1 block font-medium text-slate-700">Scheduled Term Salary (₦)</label>
+                <input x-model="salaryForm.amount_naira" type="number" placeholder="150000" class="w-full rounded-xl border border-slate-200 py-2 px-3 text-sm" />
+              </div>
+              <div>
+                <label class="mb-1 block font-medium text-slate-700">Note (Optional)</label>
+                <input x-model="salaryForm.note" type="text" placeholder="Approved by Director" class="w-full rounded-xl border border-slate-200 py-2 px-3 text-sm" />
+              </div>
+            </div>
+            <div class="mt-6 flex gap-3">
+              <button @click="salaryModalOpen = false" class="flex-1 rounded-xl border border-slate-200 py-2 text-sm font-semibold text-slate-600">Cancel</button>
+              <button @click="saveSalarySetup()" :disabled="submitting" class="flex-1 rounded-xl bg-brand-600 py-2 text-sm font-semibold text-white hover:bg-brand-700">Save Schedule</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODAL: RECORD PAYOUT -->
+        <div x-show="payoutModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-slate-900/40" @click="payoutModalOpen = false"></div>
+          <div class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 class="text-base font-semibold text-slate-900 mb-1" x-text="'Record Salary Payout — ' + payoutForm.staff_name"></h3>
+            <p class="text-xs text-amber-600 mb-4" x-text="'Current Outstanding: ' + payoutForm.remaining_display"></p>
+
+            <div class="space-y-3 text-sm">
+              <div>
+                <label class="mb-1 block font-medium text-slate-700">Payout Amount (₦)</label>
+                <input x-model="payoutForm.amount_naira" type="number" class="w-full rounded-xl border border-slate-200 py-2 px-3 text-sm" />
+              </div>
+              <div>
+                <label class="mb-1 block font-medium text-slate-700">Payment Method</label>
+                <select x-model="payoutForm.method" class="w-full rounded-xl border border-slate-200 py-2 px-3 text-sm">
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="cash">Cash</option>
+                  <option value="check">Check</option>
+                </select>
+              </div>
+              <div>
+                <label class="mb-1 block font-medium text-slate-700">Note / Memo</label>
+                <input x-model="payoutForm.note" type="text" placeholder="August salary payout" class="w-full rounded-xl border border-slate-200 py-2 px-3 text-sm" />
+              </div>
+            </div>
+            <div class="mt-6 flex gap-3">
+              <button @click="payoutModalOpen = false" class="flex-1 rounded-xl border border-slate-200 py-2 text-sm font-semibold text-slate-600">Cancel</button>
+              <button @click="savePayout()" :disabled="submitting" class="flex-1 rounded-xl bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Process Payout & Send WhatsApp</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- ===================== ADMINS SCREEN ===================== -->
+      <!-- ========================================================= -->
+      <section x-show="$store.app.screen === 'admins'" x-data="admins()">
+        <div class="mb-5 flex items-center justify-between">
+          <div>
+            <h1 class="gradient-heading text-xl font-semibold">Admin Account Management 🔒</h1>
+            <p class="text-sm text-slate-500">Invite & manage system admin accounts (Directors & Staff Admins).</p>
+          </div>
+          <button @click="openCreate()"
+            class="btn-depress inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
+            <span class="text-base leading-none">＋</span> Create Admin Account
+          </button>
+        </div>
+
+        <div x-show="loading" class="space-y-2">
+          <template x-for="i in 3" :key="i">
+            <div class="h-16 animate-pulse rounded-xl bg-slate-200/60"></div>
+          </template>
+        </div>
+
+        <div x-show="!loading" class="grad-card overflow-hidden rounded-2xl bg-white shadow-sm">
+          <table class="min-w-full divide-y divide-slate-100">
+            <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th class="px-5 py-3">Email</th>
+                <th class="px-5 py-3">Role</th>
+                <th class="px-5 py-3">Status</th>
+                <th class="px-5 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 text-sm">
+              <template x-for="u in users" :key="u.id">
+                <tr class="lift-row">
+                  <td class="px-5 py-3 font-semibold text-slate-900" x-text="u.email"></td>
+                  <td class="px-5 py-3">
+                    <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                          :class="u.role === 'director' || u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'"
+                          x-text="u.role === 'director' || u.role === 'admin' ? 'Director' : 'Staff Admin'"></span>
+                  </td>
+                  <td class="px-5 py-3">
+                    <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                          :class="u.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'"
+                          x-text="u.is_active ? 'Active' : 'Disabled'"></span>
+                  </td>
+                  <td class="px-5 py-3 text-right">
+                    <div class="flex items-center justify-end gap-2">
+                      <button @click="openEdit(u)" class="rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100">Edit</button>
+                      <button @click="toggleStatus(u)"
+                              :class="u.is_active ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'"
+                              class="rounded-lg px-2.5 py-1 text-xs font-semibold"
+                              x-text="u.is_active ? 'Deactivate' : 'Activate'"></button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <div x-show="formOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+             @keydown.escape.window="closeForm()">
+          <div class="absolute inset-0 bg-slate-900/40" @click="closeForm()"></div>
+          <div class="relative w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-slate-900" x-text="editing ? 'Edit Admin Account' : 'Create New Admin Account'"></h2>
+              <button @click="closeForm()" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Email Address</label>
+                <input x-model="form.email" type="email" placeholder="bursar@jummikville.sch"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Role</label>
+                <select x-model="form.role"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                  <option value="staff_admin">Staff Admin (Bursar / Operations)</option>
+                  <option value="director">Director (Full Access)</option>
+                </select>
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700" x-text="editing ? 'New Password (leave blank to keep current)' : 'Password'"></label>
+                <input x-model="form.password" type="password" placeholder="••••••••"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+            </div>
+
+            <div class="mt-6 flex gap-3">
+              <button @click="closeForm()"
+                class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button @click="submitForm()" :disabled="submitting"
+                class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                <span x-show="!submitting" x-text="editing ? 'Save Changes' : 'Create Account'"></span>
+                <span x-show="submitting" x-cloak>Saving…</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section x-show="$store.app.screen === 'setup'" x-data="setup()">
         <div class="mb-5">
-          <h1 class="text-xl font-semibold text-slate-900">Setup</h1>
+          <h1 class="gradient-heading text-xl font-semibold">Setup</h1>
           <p class="text-sm text-slate-500">Manage fee categories and the fees your school charges each term.</p>
         </div>
 
@@ -960,7 +2569,7 @@
               <p class="text-xs text-slate-500">The master list. Every fee type belongs to one category.</p>
             </div>
             <button @click="openCategory()"
-              class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
+              class="btn-depress inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
               <span class="text-base leading-none">＋</span> Add category
             </button>
           </div>
@@ -990,10 +2599,16 @@
             <h2 class="text-base font-semibold text-slate-900">Fee types</h2>
             <p class="text-xs text-slate-500">A category priced for a section and term.</p>
           </div>
-          <button @click="openCreate()"
-            class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
-            <span class="text-base leading-none">＋</span> New fee type
-          </button>
+          <div class="flex items-center gap-2">
+            <button @click="openRollover()"
+              class="btn-depress inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 shadow-sm transition hover:bg-brand-50">
+              <span class="text-base leading-none">↻</span> Start new term
+            </button>
+            <button @click="openCreate()"
+              class="btn-depress inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
+              <span class="text-base leading-none">＋</span> New fee type
+            </button>
+          </div>
         </div>
 
         <!-- Loading -->
@@ -1011,14 +2626,14 @@
             Create one (e.g. "Tuition · Primary · First Term"), then assign it to students from the Parents screen.
           </p>
           <button @click="openCreate()"
-            class="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
+            class="btn-depress mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
             <span class="text-base leading-none">＋</span> Create your first fee type
           </button>
         </div>
 
         <!-- Fee-type list -->
         <div x-show="!loading && feeTypes.length > 0"
-             class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+             class="grad-card overflow-hidden rounded-2xl bg-white shadow-sm">
           <table class="min-w-full divide-y divide-slate-100">
             <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
@@ -1031,7 +2646,7 @@
             </thead>
             <tbody class="divide-y divide-slate-50 text-sm">
               <template x-for="t in feeTypes" :key="t.id">
-                <tr class="hover:bg-slate-50/70">
+                <tr class="lift-row">
                   <td class="px-5 py-3 font-medium text-slate-900" x-text="t.name"></td>
                   <td class="px-5 py-3">
                     <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600"
@@ -1049,6 +2664,92 @@
               </template>
             </tbody>
           </table>
+        </div>
+
+        <!-- ============ START NEW TERM (ROLLOVER) MODAL ============ -->
+        <div x-show="rolloverOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+             @keydown.escape.window="closeRollover()">
+          <div class="absolute inset-0 bg-slate-900/40" @click="closeRollover()"></div>
+          <div class="relative w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+               x-transition:enter="transition ease-out duration-200"
+               x-transition:enter-start="translate-y-8 opacity-0" x-transition:enter-end="translate-y-0 opacity-100">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-slate-900">Start a new term</h2>
+              <button @click="closeRollover()" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+
+            <!-- Result summary (after a successful rollover) -->
+            <div x-show="rolloverResult" x-cloak class="space-y-3">
+              <div class="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800">
+                <p class="font-semibold" x-text="`Rolled ${rolloverResult?.from_term} → ${rolloverResult?.to_term}`"></p>
+                <ul class="mt-2 space-y-1 text-xs">
+                  <li x-text="`Fee types cloned: ${rolloverResult?.fee_types_cloned}`"></li>
+                  <li x-text="`New fee records created: ${rolloverResult?.records_created}`"></li>
+                  <li x-text="`Students skipped (already rolled): ${rolloverResult?.students_skipped}`"></li>
+                  <li x-text="`Outstanding balances carried: ${rolloverResult?.arrears_carried} (${rolloverResult?.arrears_total_display})`"></li>
+                </ul>
+              </div>
+              <button @click="closeRollover()"
+                class="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
+                Done
+              </button>
+            </div>
+
+            <!-- Form (before submit) -->
+            <div x-show="!rolloverResult" class="space-y-4">
+              <p class="text-sm text-slate-500">
+                Clone this term's fees into a new term and create fresh records for every active
+                student. The old term is never changed. Each student's <span class="font-medium text-slate-700">unpaid</span>
+                balance can be carried forward as an "Outstanding (Prior Term)" fee.
+              </p>
+
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Current term (roll from)</label>
+                <input x-model="rolloverForm.from_term" type="text" list="existing-terms" placeholder="e.g. First Term 2025/2026"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+                <datalist id="existing-terms">
+                  <template x-for="term in existingTerms" :key="term">
+                    <option :value="term"></option>
+                  </template>
+                </datalist>
+              </div>
+
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">New term (roll to)</label>
+                <input x-model="rolloverForm.to_term" type="text" placeholder="e.g. Second Term 2025/2026"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Section (optional)</label>
+                <select x-model="rolloverForm.section"
+                  class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                  <option value="">All sections</option>
+                  <template x-for="s in sectionOptions" :key="s">
+                    <option :value="s" x-text="s"></option>
+                  </template>
+                </select>
+              </div>
+
+              <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" x-model="rolloverForm.carry_forward"
+                  class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500/30" />
+                Carry unpaid balances forward as arrears
+              </label>
+
+              <div class="flex gap-2 pt-1">
+                <button @click="closeRollover()"
+                  class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                  Cancel
+                </button>
+                <button @click="submitRollover()" :disabled="rolloverSubmitting"
+                  class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
+                  <span x-show="!rolloverSubmitting">Start new term</span>
+                  <span x-show="rolloverSubmitting">Working…</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- ============ ADD CATEGORY MODAL ============ -->
@@ -1110,17 +2811,17 @@
                     <option :value="c.id" x-text="c.name"></option>
                   </template>
                 </select>
-                <p x-show="categories.length === 0" class="mt-1 text-xs text-amber-600">
+                <p x-show="categories.length === 0" class="mt-1 text-xs text-accent-700">
                   No categories yet. Add one above first.
                 </p>
               </div>
               <div>
                 <label class="mb-1 block text-sm font-medium text-slate-700">Section</label>
-                <div class="flex gap-2">
-                  <template x-for="sec in ['Nursery','Primary','Secondary']" :key="sec">
+                <div class="flex flex-wrap gap-2">
+                  <template x-for="sec in sectionOptions" :key="sec">
                     <button type="button" @click="createForm.section = sec"
                       :class="createForm.section === sec ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'"
-                      class="flex-1 rounded-xl py-2 text-sm font-medium transition" x-text="sec"></button>
+                      class="rounded-xl px-3 py-2 text-sm font-medium transition" x-text="sec"></button>
                   </template>
                 </div>
               </div>
@@ -1157,10 +2858,10 @@
       <section x-show="$store.app.screen === 'activity'" x-data="activity()">
         <div class="mb-5 flex items-center justify-between">
           <div>
-            <h1 class="text-xl font-semibold text-slate-900">Activity</h1>
+            <h1 class="gradient-heading text-xl font-semibold">Activity</h1>
             <p class="text-sm text-slate-500">What the system has been doing — reminders and confirmations.</p>
           </div>
-          <button @click="load()" class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+          <button @click="load()" class="btn-depress rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
             Refresh
           </button>
         </div>
@@ -1171,13 +2872,13 @@
           </template>
         </div>
 
-        <div x-show="!loading" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div x-show="!loading" class="grad-card overflow-hidden rounded-2xl bg-white shadow-sm">
           <p x-show="items.length === 0" class="p-10 text-center text-sm text-slate-400">
             Nothing here yet. Record a payment or send reminders and it will appear here.
           </p>
           <ul class="divide-y divide-slate-50">
             <template x-for="item in items" :key="item.id">
-              <li class="flex items-start gap-3 px-5 py-4">
+              <li class="lift-row flex items-start gap-3 px-5 py-4">
                 <span class="mt-0.5 text-lg" x-text="activityIcon(item.action)"></span>
                 <div class="flex-1">
                   <p class="text-sm text-slate-700" x-text="item.description"></p>
@@ -1204,5 +2905,71 @@
         <span x-text="$store.app.toast.message"></span>
       </div>
     </div>
+
+    <!-- ================= DEPTH EFFECTS (parallax + tilt) =================
+         Small, dependency-free, and defensive:
+           • Bails out entirely if the user prefers reduced motion.
+           • Uses only transform (GPU) and is throttled with requestAnimationFrame,
+             so scroll and mouse-move stay at 60fps.
+           • Tilt uses event delegation on document, so it works for cards Alpine
+             adds/removes on the fly without re-binding.
+         None of this touches app logic — it only reads scroll/cursor position
+         and writes CSS transforms on decorative wrappers. -->
+    <script>
+      (function () {
+        var reduce = window.matchMedia
+          && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (reduce) return; // fully static UI for reduced-motion users
+
+        // ---- Parallax: nudge each blob by scrollY * its data-depth ----
+        var blobs = Array.prototype.slice.call(
+          document.querySelectorAll(".parallax-blob")
+        );
+        var scrollQueued = false;
+        function applyParallax() {
+          scrollQueued = false;
+          var y = window.scrollY || window.pageYOffset || 0;
+          for (var i = 0; i < blobs.length; i++) {
+            var d = parseFloat(blobs[i].getAttribute("data-depth")) || 0;
+            blobs[i].style.transform = "translate3d(0," + (y * d) + "px,0)";
+          }
+        }
+        window.addEventListener("scroll", function () {
+          if (!scrollQueued) { scrollQueued = true; requestAnimationFrame(applyParallax); }
+        }, { passive: true });
+        applyParallax();
+
+        // ---- 3D tilt: rotate the .tilt-card under the cursor a few degrees ----
+        var MAX = 6;            // max tilt in degrees — deliberately gentle
+        var tiltQueued = false;
+        var pending = null;     // { card, ev }
+        function applyTilt() {
+          tiltQueued = false;
+          if (!pending) return;
+          var card = pending.card, ev = pending.ev;
+          var r = card.getBoundingClientRect();
+          var px = (ev.clientX - r.left) / r.width;   // 0..1 across
+          var py = (ev.clientY - r.top) / r.height;   // 0..1 down
+          var ry = (px - 0.5) * 2 * MAX;              // left/right → rotateY
+          var rx = (0.5 - py) * 2 * MAX;              // up/down    → rotateX
+          card.style.setProperty("--rx", rx.toFixed(2) + "deg");
+          card.style.setProperty("--ry", ry.toFixed(2) + "deg");
+        }
+        document.addEventListener("mousemove", function (ev) {
+          var card = ev.target.closest ? ev.target.closest(".tilt-card") : null;
+          if (!card) return;
+          pending = { card: card, ev: ev };
+          if (!tiltQueued) { tiltQueued = true; requestAnimationFrame(applyTilt); }
+        }, { passive: true });
+        // Reset a card to flat when the cursor leaves it
+        document.addEventListener("mouseout", function (ev) {
+          var card = ev.target.closest ? ev.target.closest(".tilt-card") : null;
+          if (!card) return;
+          if (ev.relatedTarget && card.contains(ev.relatedTarget)) return;
+          card.style.setProperty("--rx", "0deg");
+          card.style.setProperty("--ry", "0deg");
+        }, { passive: true });
+      })();
+    </script>
   </body>
 </html>

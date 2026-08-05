@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models import FeeRecord, Payment, Student
 from app.services import twilio_wa
+from app.services import receipt_service
 from app.services.activity_service import log_activity
 from app.utils.formatting import kobo_to_naira
 
@@ -33,6 +34,7 @@ def record_payment(
     method: str,
     paystack_reference: str | None = None,
     recorded_by: str | None = None,
+    recorded_by_user_id: int | None = None,
     note: str | None = None,
     send_confirmation: bool = True,
 ) -> Payment:
@@ -45,9 +47,11 @@ def record_payment(
         db: Database session
         fee_record_id: Which fee record to apply this payment to
         amount_kobo: Payment amount in kobo
-        method: 'paystack', 'cash', 'pos', or 'transfer'
+        method: 'paystack', 'cash', 'pos', 'bank_transfer', or 'other'
         paystack_reference: Paystack ref (for idempotency — only for Paystack payments)
-        recorded_by: Staff name (for cash/POS payments)
+        recorded_by: Staff label (for cash/POS payments) — defaults to the admin's email
+        recorded_by_user_id: id of the authenticated admin who recorded a manual
+            payment (null for Paystack/system-initiated payments) — the audit actor
         note: Optional note
         send_confirmation: Whether to send a WhatsApp confirmation
 
@@ -94,12 +98,17 @@ def record_payment(
         method=method,
         paystack_reference=paystack_reference,
         recorded_by=recorded_by,
+        recorded_by_user_id=recorded_by_user_id,
         note=note,
     )
     db.add(payment)
 
-    # ---- Step 4: Update the fee record ----
-    fee_record.amount_paid_kobo += amount_kobo
+    # ---- Step 4: Attach the payment so the derived balance sees it ----
+    # amount_paid_kobo is a computed SUM of this record's Payment rows (see
+    # FeeRecord.amount_paid_kobo). We append the new payment to the in-session
+    # relationship so recalculate_status() — and every balance read below —
+    # counts it immediately, before the commit round-trips to the DB.
+    fee_record.payments.append(payment)
     fee_record.recalculate_status()
 
     # ---- Step 4b: Record this in the activity feed ----
@@ -109,9 +118,13 @@ def record_payment(
     method_label = {
         "cash": "cash",
         "pos": "POS",
-        "transfer": "bank transfer",
+        "bank_transfer": "bank transfer",
+        "other": "other",
         "paystack": "Paystack",
     }.get(method, method)
+    # Who recorded it — the audit actor. For manual payments this is the staff
+    # label (the admin's email by default); Paystack payments are system-driven.
+    actor = recorded_by or ("Paystack" if method == "paystack" else "system")
     log_activity(
         db=db,
         school_id=student.school_id,
@@ -119,7 +132,8 @@ def record_payment(
         action="payment_recorded",
         description=(
             f"Payment confirmed for {student.student_name} — "
-            f"{kobo_to_naira(amount_kobo)} received via {method_label}"
+            f"{kobo_to_naira(amount_kobo)} received via {method_label} "
+            f"(recorded by {actor})"
         ),
     )
 
@@ -134,6 +148,20 @@ def record_payment(
         f"New balance: {fee_record.balance_kobo} kobo. "
         f"Status: {fee_record.status}"
     )
+
+    # ---- Step 5b: Generate the receipt PDF (once) and save its URL ----
+    # Best-effort, like the WhatsApp send below: the payment is already
+    # committed, so a receipt failure must never fail the payment. The URL is
+    # the protected download route, saved once so it's stable for re-download.
+    if not payment.receipt_url:
+        try:
+            receipt_service.generate_receipt(payment)
+            payment.receipt_url = f"/api/v1/payments/{payment.id}/receipt"
+            db.commit()
+            db.refresh(payment)
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Receipt generation failed (payment still recorded): {e}")
 
     # ---- Step 6: Send WhatsApp confirmation ----
     # The message we send depends on where this payment LEFT the fee record:

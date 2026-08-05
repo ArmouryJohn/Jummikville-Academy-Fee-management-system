@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models import FeeType, FeeRecord, Student, School, FeeCategory
+from app.models import FeeType, FeeRecord, Student, School, FeeCategory, Term
 from app.schemas.fee import (
     FeeCategoryCreate,
     FeeCategoryResponse,
@@ -22,7 +22,10 @@ from app.schemas.fee import (
     FeeRecordCreate,
     FeeRecordResponse,
     BulkFeeAssign,
+    TermRolloverRequest,
+    TermRolloverResponse,
 )
+from app.services.term_service import rollover_term, get_or_create_term
 
 logger = logging.getLogger(__name__)
 
@@ -146,11 +149,24 @@ def create_fee_type(
     if not category:
         raise HTTPException(status_code=404, detail="Fee category not found")
 
+    # Resolve the term: prefer an explicit term_id, otherwise resolve/create by
+    # name so the existing UI (which sends a term string) keeps working.
+    if data.term_id is not None:
+        term_obj = (
+            db.query(Term)
+            .filter(Term.id == data.term_id, Term.school_id == data.school_id)
+            .first()
+        )
+        if not term_obj:
+            raise HTTPException(status_code=404, detail="Term not found")
+    else:
+        term_obj = get_or_create_term(db, data.school_id, data.term)
+
     fee_type = FeeType(
         school_id=data.school_id,
         category_id=data.category_id,
         section=data.section,
-        term=data.term,
+        term_id=term_obj.id,
         amount_kobo=data.amount_kobo,
     )
     db.add(fee_type)
@@ -172,12 +188,18 @@ def list_fee_types(
     """List all fee types for a school, optionally filtered by section."""
     query = (
         db.query(FeeType)
-        .options(joinedload(FeeType.category))
+        .options(joinedload(FeeType.category), joinedload(FeeType.term_obj))
         .filter(FeeType.school_id == school_id)
     )
     if section:
         query = query.filter(FeeType.section == section)
-    return query.order_by(FeeType.term.desc(), FeeType.section).all()
+    # Sort by term newest-first via the Term row (the old FeeType.term is now a
+    # read-through property, so it can't be used in ORDER BY).
+    return (
+        query.outerjoin(FeeType.term_obj)
+        .order_by(Term.created_at.desc().nullslast(), FeeType.section)
+        .all()
+    )
 
 
 @router.delete("/types/{fee_type_id}", status_code=200)
@@ -248,7 +270,6 @@ def assign_fee_to_student(
         student_id=data.student_id,
         fee_type_id=data.fee_type_id,
         total_fees_kobo=data.total_fees_kobo,
-        amount_paid_kobo=0,
         status="unpaid",
     )
     db.add(record)
@@ -306,7 +327,6 @@ def bulk_assign_fees(
             student_id=student_id,
             fee_type_id=data.fee_type_id,
             total_fees_kobo=amount,
-            amount_paid_kobo=0,
             status="unpaid",
         )
         db.add(record)
@@ -367,3 +387,51 @@ def get_fee_record(record_id: int, db: Session = Depends(get_db)):
     if not record:
         raise HTTPException(status_code=404, detail="Fee record not found")
     return record
+
+
+# --------------------------------------------------------------------------
+# Term rollover — start a new term without destroying the old one
+# --------------------------------------------------------------------------
+
+@router.post("/terms/rollover", response_model=TermRolloverResponse)
+def start_new_term(
+    data: TermRolloverRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Start a new term by rolling the fee catalog and student records forward.
+
+    This is EXPLICIT and human-triggered — nothing rolls over automatically on a
+    date. It is also idempotent: running it twice for the same from_term → to_term
+    skips students who already have records in the new term, so it can't
+    double-create records or double-carry arrears.
+
+    Prior-term data is never touched. When carry_forward is true (default), each
+    student's UNPAID prior-term balance follows them into the new term as an
+    'Outstanding (Prior Term)' arrears record; the paid portion stays with the
+    old term where it happened.
+    """
+    school = db.query(School).filter(School.id == data.school_id).first()
+    if not school:
+        raise HTTPException(status_code=404, detail="School not found")
+
+    if data.from_term == data.to_term:
+        raise HTTPException(
+            status_code=400,
+            detail="from_term and to_term must be different",
+        )
+
+    summary = rollover_term(
+        db=db,
+        school_id=data.school_id,
+        from_term=data.from_term,
+        to_term=data.to_term,
+        section=data.section,
+        carry_forward=data.carry_forward,
+    )
+
+    logger.info(
+        f"Term rollover requested: {data.from_term} -> {data.to_term} "
+        f"(school {data.school_id})"
+    )
+    return TermRolloverResponse(**summary)

@@ -1,0 +1,53 @@
+2026-08-04 13:09:34 | INFO     | app.main | Frontend mounted from C:\Users\MKPOUTO IDIBEKE\Documents\GitHub\Jummikville-Academy-Fee-management-system\frontend
+INFO:     Started server process [20236]
+INFO:     Waiting for application startup.
+2026-08-04 13:09:34 | INFO     | app.main | Creating database tables...
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("schools")
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("students")
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("fee_categories")
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("terms")
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("fee_types")
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("fee_records")
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("payments")
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("activity_logs")
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("users")
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("webhook_events")
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("expenses")
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | COMMIT
+2026-08-04 13:09:35 | INFO     | app.main | Database tables ready.
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | SELECT users.id AS users_id, users.school_id AS users_school_id, users.email AS users_email, users.hashed_password AS users_hashed_password, users.role AS users_role, users.is_active AS users_is_active, users.created_at AS users_created_at, users.last_login AS users_last_login 
+FROM users 
+WHERE users.email = ?
+ LIMIT ? OFFSET ?
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [generated in 0.00892s] ('admin@jummikville.sch', 1, 0)
+2026-08-04 13:09:35 | INFO     | app.main | Admin account present: admin@jummikville.sch (id=1)
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | ROLLBACK
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | SELECT schools.id AS schools_id, schools.name AS schools_name, schools.slug AS schools_slug, schools.phone AS schools_phone, schools.email AS schools_email, schools.address AS schools_address, schools.is_active AS schools_is_active, schools.created_at AS schools_created_at 
+FROM schools 
+WHERE schools.slug = ?
+ LIMIT ? OFFSET ?
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [generated in 0.00735s] ('jummikville', 1, 0)
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | SELECT fee_categories.name AS fee_categories_name 
+FROM fee_categories 
+WHERE fee_categories.school_id = ?
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | [generated in 0.00967s] (1,)
+2026-08-04 13:09:35 | INFO     | app.main | Fee categories already present — nothing to seed.
+2026-08-04 13:09:35 | INFO     | sqlalchemy.engine.Engine | ROLLBACK
+INFO:     Application startup complete.
+ERROR:    [Errno 10048] error while attempting to bind on address ('127.0.0.1', 8000): [winerror 10048] only one usage of each socket address (protocol/network address/port) is normally permitted
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.

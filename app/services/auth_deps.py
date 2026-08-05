@@ -99,3 +99,19 @@ def get_current_user(
     _set_session_cookie(response, fresh)
 
     return user
+
+
+def require_director(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    FastAPI dependency: require a logged-in user with Director privileges.
+
+    Raises HTTP 403 Forbidden if the user is a Staff Admin.
+    """
+    if not current_user.is_director:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Director role required to perform this action.",
+        )
+    return current_user

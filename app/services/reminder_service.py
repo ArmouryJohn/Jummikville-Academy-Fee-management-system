@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 async def send_reminders(
     db: Session,
     school_id: int,
+    section: str | None = None,
     class_name: str | None = None,
     fee_type_id: int | None = None,
     student_id: int | None = None,
@@ -36,6 +37,7 @@ async def send_reminders(
     Args:
         db: Database session
         school_id: Which school's parents to remind
+        section: Optional filter — only remind parents in this section
         class_name: Optional filter — only remind parents of this class
         fee_type_id: Optional filter — only remind about this specific fee
         student_id: Optional filter — only remind this ONE student's parent
@@ -61,6 +63,8 @@ async def send_reminders(
     )
 
     # Apply optional filters
+    if section:
+        query = query.filter(Student.section == section)
     if class_name:
         query = query.filter(Student.class_name == class_name)
     if fee_type_id:

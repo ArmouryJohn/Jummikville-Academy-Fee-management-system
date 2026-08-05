@@ -21,10 +21,13 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models import School, Student, FeeRecord, FeeType, FeeCategory, Payment, ActivityLog
+from app.models import School, Student, FeeRecord, FeeType, FeeCategory, Payment, ActivityLog, Expense
+from app.constants import SECTION_CLASSES
 from app.schemas.dashboard import (
     DashboardSummary,
+    DashboardInsights,
     SectionSummary,
+    ClassSummary,
     CategoryBreakdown,
     StudentOverview,
     StudentDetail,
@@ -33,6 +36,7 @@ from app.schemas.dashboard import (
     MessageHistoryItem,
 )
 from app.utils.formatting import kobo_to_naira
+from app.services.expense_service import total_expenses_kobo
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +75,8 @@ def _aggregate_status(total_kobo: int, paid_kobo: int) -> str:
 @router.get("/summary", response_model=DashboardSummary)
 def dashboard_summary(
     school_id: int = Query(..., description="Which school to summarise"),
-    section: str | None = Query(None, description="Filter by section: Nursery, Primary, Secondary, or null for All"),
+    section: str | None = Query(None, description="Filter by section: Preschool, Primary, Smart Skills High School, or null for All"),
+    class_name: str | None = Query(None, description="Filter by class within a section (e.g. 'Primary 3'). section must also be provided."),
     db: Session = Depends(get_db),
 ):
     """
@@ -99,6 +104,8 @@ def dashboard_summary(
     )
     if section:
         query = query.filter(Student.section == section)
+    if class_name:
+        query = query.filter(Student.class_name == class_name)
     students = query.all()
 
     total_expected = 0
@@ -169,8 +176,8 @@ def dashboard_summary(
         )
     )
 
-    # Each actual section that has students
-    for sec in ["Nursery", "Primary", "Secondary"]:
+    # Each actual section that has students — iterate new section names
+    for sec in list(SECTION_CLASSES.keys()):
         sec_students = [s for s in all_students if s.section == sec]
         if not sec_students:
             continue
@@ -248,6 +255,86 @@ def dashboard_summary(
             )
         )
 
+    # ---- Net funds (Part D): all-time whole-school money OUT ----
+    # Expenses reduce the school's cash position only; they never touch
+    # total_remaining or any student balance (computed above, left untouched).
+    expenses_kobo = total_expenses_kobo(db, school_id)
+    net_available = total_collected - expenses_kobo
+
+    # ---- Part F — Dashboard Insights ----
+    # 1. Top unpaid class (class with highest total remaining balance)
+    class_remaining: dict[str, int] = {}
+    for s in all_students:
+        c_name = s.class_name or "Unassigned"
+        s_rem = sum(r.remaining_kobo for r in s.fee_records)
+        class_remaining[c_name] = class_remaining.get(c_name, 0) + s_rem
+
+    top_unpaid_class_name: str | None = None
+    top_unpaid_class_rem_kobo = 0
+    if class_remaining:
+        sorted_classes = sorted(class_remaining.items(), key=lambda x: x[1], reverse=True)
+        if sorted_classes and sorted_classes[0][1] > 0:
+            top_unpaid_class_name = sorted_classes[0][0]
+            top_unpaid_class_rem_kobo = sorted_classes[0][1]
+
+    # 2. Most common payment method
+    payment_methods_query = (
+        db.query(Payment.method, func.count(Payment.id))
+        .join(FeeRecord, Payment.fee_record_id == FeeRecord.id)
+        .join(Student, FeeRecord.student_id == Student.id)
+        .filter(Student.school_id == school_id)
+        .group_by(Payment.method)
+        .order_by(func.count(Payment.id).desc())
+        .first()
+    )
+    most_common_method_str: str | None = None
+    if payment_methods_query and payment_methods_query[0]:
+        raw_method = str(payment_methods_query[0]).lower()
+        method_labels = {
+            "paystack": "Paystack (Online)",
+            "cash": "Cash",
+            "pos": "POS",
+            "bank_transfer": "Bank Transfer",
+            "transfer": "Bank Transfer",
+            "other": "Other",
+        }
+        most_common_method_str = method_labels.get(raw_method, raw_method.title())
+
+    # 3. Biggest expense category
+    expense_cat_query = (
+        db.query(Expense.category, func.sum(Expense.amount_kobo))
+        .filter(Expense.school_id == school_id)
+        .group_by(Expense.category)
+        .order_by(func.sum(Expense.amount_kobo).desc())
+        .first()
+    )
+    biggest_expense_cat_name: str | None = None
+    biggest_expense_cat_kobo = 0
+    if expense_cat_query and expense_cat_query[0] and (expense_cat_query[1] or 0) > 0:
+        biggest_expense_cat_name = str(expense_cat_query[0])
+        biggest_expense_cat_kobo = int(expense_cat_query[1])
+
+    # 4. Collection percentage by section
+    collection_by_sec: dict[str, int] = {}
+    for sec_summary in sections_list:
+        if sec_summary.section == "All":
+            continue
+        exp = sec_summary.total_expected_kobo
+        coll = sec_summary.total_collected_kobo
+        rate = round(coll / exp * 100) if exp > 0 else 0
+        collection_by_sec[sec_summary.section] = rate
+
+    insights_obj = DashboardInsights(
+        top_unpaid_class=top_unpaid_class_name,
+        top_unpaid_class_remaining_kobo=top_unpaid_class_rem_kobo,
+        top_unpaid_class_remaining_display=kobo_to_naira(top_unpaid_class_rem_kobo),
+        most_common_payment_method=most_common_method_str,
+        biggest_expense_category=biggest_expense_cat_name,
+        biggest_expense_category_kobo=biggest_expense_cat_kobo,
+        biggest_expense_category_display=kobo_to_naira(biggest_expense_cat_kobo),
+        collection_by_section=collection_by_sec,
+    )
+
     return DashboardSummary(
         school_id=school.id,
         school_name=school.name,
@@ -260,6 +347,10 @@ def dashboard_summary(
         total_collected_display=kobo_to_naira(total_collected),
         total_remaining_display=kobo_to_naira(total_remaining),
         total_overpaid_display=kobo_to_naira(total_overpaid),
+        total_expenses_kobo=expenses_kobo,
+        net_available_kobo=net_available,
+        total_expenses_display=kobo_to_naira(expenses_kobo),
+        net_available_display=kobo_to_naira(net_available),
         collection_rate=collection_rate,
         students_paid=paid,
         students_partial=partial,
@@ -268,6 +359,7 @@ def dashboard_summary(
         students_no_fee=no_fee,
         sections=sections_list,
         categories=categories_list,
+        insights=insights_obj,
     )
 
 
@@ -275,6 +367,7 @@ def dashboard_summary(
 def students_overview(
     school_id: int = Query(..., description="Which school's students to list"),
     section: str | None = Query(None, description="Filter by section"),
+    class_name: str | None = Query(None, description="Filter by class (e.g. 'Primary 3')"),
     db: Session = Depends(get_db),
 ):
     """
@@ -293,6 +386,8 @@ def students_overview(
     )
     if section:
         query = query.filter(Student.section == section)
+    if class_name:
+        query = query.filter(Student.class_name == class_name)
 
     students = query.order_by(Student.student_name).all()
 
@@ -381,12 +476,17 @@ def student_detail(student_id: int, db: Session = Depends(get_db)):
         for p in r.payments:
             payments.append(
                 PaymentHistoryItem(
+                    id=p.id,
                     amount_kobo=p.amount_kobo,
                     amount_display=kobo_to_naira(p.amount_kobo),
                     method=p.method,
                     recorded_by=p.recorded_by,
                     note=p.note,
                     paid_at=p.paid_at,
+                    # The receipt route regenerates on demand if the file is
+                    # missing, so a canonical link always works even when the
+                    # stored receipt_url hasn't been set yet.
+                    receipt_url=p.receipt_url or f"/api/v1/payments/{p.id}/receipt",
                 )
             )
     payments.sort(key=lambda p: p.paid_at, reverse=True)
@@ -430,3 +530,99 @@ def student_detail(student_id: int, db: Session = Depends(get_db)):
         payments=payments,
         messages=messages,
     )
+
+
+# --------------------------------------------------------------------------
+# New: per-class summary list for the class drill-down navigation
+# --------------------------------------------------------------------------
+
+@router.get("/classes", response_model=list[ClassSummary])
+def classes_overview(
+    school_id: int = Query(..., description="Which school"),
+    section: str | None = Query(
+        None,
+        description=(
+            "Filter to one section (e.g. 'Primary'). "
+            "If omitted, returns summaries for all classes across all sections."
+        ),
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    Return one ClassSummary per class within the requested section (or all
+    sections if no section is given).
+
+    The frontend calls this when the user clicks a section tab, to populate
+    the class-tab row with student counts and quick status badges. Each entry
+    has the same four headline totals as DashboardSummary, but scoped to
+    exactly one class.
+    """
+    school = db.query(School).filter(School.id == school_id).first()
+    if not school:
+        raise HTTPException(status_code=404, detail="School not found")
+
+    # Determine which section(s) to iterate
+    if section:
+        sections_to_process = {section: SECTION_CLASSES.get(section, [])}
+    else:
+        sections_to_process = SECTION_CLASSES
+
+    # Load all active students once (with fee records) to avoid per-class queries
+    student_query = (
+        db.query(Student)
+        .options(joinedload(Student.fee_records))
+        .filter(Student.school_id == school_id, Student.is_active == True)  # noqa: E712
+    )
+    if section:
+        student_query = student_query.filter(Student.section == section)
+    all_students = student_query.all()
+
+    results: list[ClassSummary] = []
+
+    for sec_name, class_list in sections_to_process.items():
+        for cls in class_list:
+            cls_students = [s for s in all_students if s.section == sec_name and s.class_name == cls]
+
+            total_exp = sum(r.total_fees_kobo for s in cls_students for r in s.fee_records)
+            total_coll = sum(r.amount_paid_kobo for s in cls_students for r in s.fee_records)
+            total_rem = sum(r.remaining_kobo for s in cls_students for r in s.fee_records)
+            total_over = sum(r.overpaid_kobo for s in cls_students for r in s.fee_records)
+
+            paid = partial = unpaid = overpaid = no_fee = 0
+            for s in cls_students:
+                s_total = sum(r.total_fees_kobo for r in s.fee_records)
+                s_paid = sum(r.amount_paid_kobo for r in s.fee_records)
+                status = _aggregate_status(s_total, s_paid)
+                if status == "paid":
+                    paid += 1
+                elif status == "partial":
+                    partial += 1
+                elif status == "overpaid":
+                    overpaid += 1
+                elif status == "no_fee":
+                    no_fee += 1
+                else:
+                    unpaid += 1
+
+            results.append(
+                ClassSummary(
+                    section=sec_name,
+                    class_name=cls,
+                    total_students=len(cls_students),
+                    total_expected_kobo=total_exp,
+                    total_collected_kobo=total_coll,
+                    total_remaining_kobo=total_rem,
+                    total_overpaid_kobo=total_over,
+                    total_expected_display=kobo_to_naira(total_exp),
+                    total_collected_display=kobo_to_naira(total_coll),
+                    total_remaining_display=kobo_to_naira(total_rem),
+                    total_overpaid_display=kobo_to_naira(total_over),
+                    students_paid=paid,
+                    students_partial=partial,
+                    students_unpaid=unpaid,
+                    students_overpaid=overpaid,
+                    students_no_fee=no_fee,
+                )
+            )
+
+    return results

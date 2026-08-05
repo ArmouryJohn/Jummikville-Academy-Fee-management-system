@@ -27,7 +27,10 @@ class School(Base):
         String(50), unique=True, nullable=False,
         comment="URL-friendly identifier, e.g. 'jummikville'"
     )
-    phone: Mapped[str | None] = mapped_column(String(20))
+    phone: Mapped[str | None] = mapped_column(
+        String(120),
+        comment="One or more contact numbers (comma-separated); shown on receipts"
+    )
     email: Mapped[str | None] = mapped_column(String(200))
     address: Mapped[str | None] = mapped_column(String(500))
 
@@ -44,6 +47,9 @@ class School(Base):
         back_populates="school", cascade="all, delete-orphan"
     )
     fee_types: Mapped[list["FeeType"]] = relationship(  # noqa: F821
+        back_populates="school", cascade="all, delete-orphan"
+    )
+    terms: Mapped[list["Term"]] = relationship(  # noqa: F821
         back_populates="school", cascade="all, delete-orphan"
     )
     fee_categories: Mapped[list["FeeCategory"]] = relationship(  # noqa: F821

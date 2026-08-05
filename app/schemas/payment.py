@@ -28,13 +28,17 @@ class CashPaymentCreate(BaseModel):
     )
     method: str = Field(
         default="cash",
-        pattern="^(cash|pos|transfer)$",
-        description="Payment method: 'cash', 'pos', or 'transfer'"
+        pattern="^(cash|pos|bank_transfer|other)$",
+        description="Payment method: 'cash', 'pos', 'bank_transfer', or 'other'"
     )
-    recorded_by: str = Field(
-        ..., min_length=2, max_length=200,
+    recorded_by: str | None = Field(
+        None, min_length=2, max_length=200,
         examples=["Mrs. Aniefiok"],
-        description="Name of the staff member recording this payment"
+        description=(
+            "Optional label for who took the payment. If omitted, the system uses "
+            "the logged-in admin's email. The authenticated admin is always recorded "
+            "as the audit actor regardless of this field."
+        )
     )
     note: str | None = Field(
         None, max_length=500,
@@ -71,6 +75,8 @@ class PaymentResponse(BaseModel):
     method: str
     paystack_reference: str | None
     recorded_by: str | None
+    recorded_by_user_id: int | None = None
+    receipt_url: str | None = None
     note: str | None
     paid_at: datetime
     created_at: datetime

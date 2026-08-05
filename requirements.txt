@@ -12,6 +12,9 @@ httpx>=0.27.0
 # WhatsApp messaging
 twilio>=9.0.0
 
+# PDF receipts
+fpdf2>=2.7.0
+
 # Auth — JWT session tokens (password hashing uses the Python stdlib hashlib,
 # so no bcrypt/passlib build step is required)
 PyJWT>=2.8.0

@@ -30,6 +30,22 @@ const CONFIG = {
 };
 
 // ---------------------------------------------------------------------------
+// 1b. SECTION_CLASSES — mirrors app/constants.py exactly.
+// ---------------------------------------------------------------------------
+// This is the single source of truth for the section→class mapping on the
+// frontend. When you add a class in constants.py, add it here too.
+const SECTION_CLASSES = {
+  "Preschool": ["Preschool 1", "Preschool 2", "Preschool 3", "Reception"],
+  "Primary": ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"],
+  "Smart Skills High School": ["JSS1", "JSS2", "JSS3", "SS1", "SS2", "SS3"],
+};
+const SECTIONS = Object.keys(SECTION_CLASSES);
+
+// Make both available globally so Alpine x-data expressions can reference them.
+window.SECTION_CLASSES = SECTION_CLASSES;
+window.SECTIONS = SECTIONS;
+
+// ---------------------------------------------------------------------------
 // 2. api() — one wrapper for every backend call
 // ---------------------------------------------------------------------------
 async function api(path, options = {}) {
@@ -73,24 +89,34 @@ async function api(path, options = {}) {
 // ---------------------------------------------------------------------------
 
 // Map a status string to Tailwind classes for the coloured pill/badge.
+// Palette is deliberately narrow (blue / yellow / grey, with GREEN as the one
+// approved exception for "Paid"), so we separate the five statuses by HUE
+// FAMILY + tint depth rather than five unrelated colours:
+//   • green  = done        → Paid (the one exception to the palette)
+//   • blue   = on-track    → Partial (light blue, "on the way to paid")
+//   • yellow = attention   → Unpaid (strong yellow) vs Overpaid (soft gold)
+//   • grey   = nothing set → No fee set
 function statusBadge(status) {
   switch (status) {
     case "paid":
+      // Green — fully settled, the positive "done" state.
       return { label: "Paid", cls: "bg-emerald-50 text-emerald-700 ring-emerald-600/20" };
     case "overpaid":
-      // Overpaid is its OWN status — the parent paid more than owed. Blue so it
-      // reads as "money to return", clearly distinct from a plain green "Paid".
-      return { label: "Overpaid", cls: "bg-sky-50 text-sky-700 ring-sky-600/20" };
+      // Soft gold — parent paid more than owed; credit to return. Attention,
+      // but gentler than Unpaid, and a distinct tint so the two don't clash.
+      return { label: "Overpaid", cls: "bg-accent-50 text-accent-700 ring-accent-600/30" };
     case "partial":
-      return { label: "Partially Paid", cls: "bg-amber-50 text-amber-700 ring-amber-600/20" };
+      // Light blue — partway to Paid. Same hue as Paid but lighter, so it reads
+      // as "on the way there" while staying clearly distinguishable.
+      return { label: "Partially Paid", cls: "bg-brand-50 text-brand-700 ring-brand-600/20" };
     case "no_fee":
-      // No fees assigned yet — NOT the same as fully paid. Neutral slate colour
-      // so it reads as "needs attention / incomplete", not success or debt.
+      // Neutral grey — no fees assigned yet. Not success, not debt.
       return { label: "No fee set", cls: "bg-slate-100 text-slate-600 ring-slate-500/20" };
     case "unpaid":
-      return { label: "Unpaid", cls: "bg-rose-50 text-rose-700 ring-rose-600/20" };
+      // Strong yellow — nothing paid, needs the most attention.
+      return { label: "Unpaid", cls: "bg-accent-100 text-accent-700 ring-accent-600/40" };
     default:
-      return { label: "Unpaid", cls: "bg-rose-50 text-rose-700 ring-rose-600/20" };
+      return { label: "Unpaid", cls: "bg-accent-100 text-accent-700 ring-accent-600/40" };
   }
 }
 
@@ -149,6 +175,12 @@ document.addEventListener("alpine:init", () => {
     toast: { show: false, message: "", kind: "success" },
 
     go(screen) {
+      const auth = Alpine.store("auth");
+      if ((screen === "payroll" || screen === "admins") && auth.user && !auth.isDirector) {
+        this.notify("Director role required to access " + screen + ".", "error");
+        this.screen = "dashboard";
+        return;
+      }
       this.screen = screen;
     },
 
@@ -178,6 +210,10 @@ document.addEventListener("alpine:init", () => {
 
     get isAuthenticated() {
       return this.status === "in";
+    },
+
+    get isDirector() {
+      return this.user && (this.user.role === "director" || this.user.role === "admin");
     },
 
     async init() {
@@ -299,7 +335,10 @@ document.addEventListener("alpine:init", () => {
     summary: null,
     recent: [],
     chart: null,
-    section: "all", // 'all' | 'Nursery' | 'Primary' | 'Secondary'
+    section: "all",   // 'all' | 'Preschool' | 'Primary' | 'Smart Skills High School'
+    activeClass: null, // null = section-level view; 'Primary 3' etc = class-level view
+    classSummaries: [], // ClassSummary[] for the class-tab row
+    classStudents: [],  // StudentOverview[] for the class drill-down student list
 
     async init() {
       await this.load();
@@ -308,12 +347,14 @@ document.addEventListener("alpine:init", () => {
     async load() {
       this.loading = true;
       try {
-        // The section filter is passed to the backend so the 4 totals, the
-        // status counts, and the category breakdown are all scoped to it.
+        // Build query params for the summary endpoint.
         // 'all' means whole-school (no section param).
-        const sectionQ = this.section === "all" ? "" : `&section=${encodeURIComponent(this.section)}`;
+        let summaryUrl = `/dashboard/summary?school_id=${CONFIG.SCHOOL_ID}`;
+        if (this.section !== "all") summaryUrl += `&section=${encodeURIComponent(this.section)}`;
+        if (this.activeClass) summaryUrl += `&class_name=${encodeURIComponent(this.activeClass)}`;
+
         const [summary, recent] = await Promise.all([
-          api(`/dashboard/summary?school_id=${CONFIG.SCHOOL_ID}${sectionQ}`),
+          api(summaryUrl),
           api(`/activity/?school_id=${CONFIG.SCHOOL_ID}&limit=6`),
         ]);
         this.summary = summary;
@@ -327,11 +368,61 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
+    // Load class-level summaries for the current section (populates the class tab row).
+    async loadClasses() {
+      if (this.section === "all") {
+        this.classSummaries = [];
+        return;
+      }
+      try {
+        this.classSummaries = await api(
+          `/dashboard/classes?school_id=${CONFIG.SCHOOL_ID}&section=${encodeURIComponent(this.section)}`
+        );
+      } catch (e) {
+        Alpine.store("app").notify(e.message, "error");
+      }
+    },
+
     // Switch the whole dashboard to a section (or back to whole-school).
     async switchSection(section) {
-      if (this.section === section) return;
+      if (this.section === section && this.activeClass === null) return;
       this.section = section;
+      this.activeClass = null;
+      await Promise.all([this.load(), this.loadClasses()]);
+    },
+
+    // Drill down into a specific class.
+    async switchClass(className) {
+      if (this.activeClass === className) return;
+      this.activeClass = className;
+      await Promise.all([this.load(), this.loadClassStudents()]);
+    },
+
+    // Go back up to the section-level view.
+    async backToSection() {
+      if (this.activeClass === null) return;
+      this.activeClass = null;
+      this.classStudents = [];
       await this.load();
+    },
+
+    // Load the roster for the drilled-in class (the student list on the
+    // class page). Scoped to exactly the active section + class so the admin
+    // sees only that class's students and who hasn't paid.
+    async loadClassStudents() {
+      if (!this.activeClass || this.section === "all") {
+        this.classStudents = [];
+        return;
+      }
+      try {
+        this.classStudents = await api(
+          `/dashboard/students?school_id=${CONFIG.SCHOOL_ID}` +
+          `&section=${encodeURIComponent(this.section)}` +
+          `&class_name=${encodeURIComponent(this.activeClass)}`
+        );
+      } catch (e) {
+        Alpine.store("app").notify(e.message, "error");
+      }
     },
 
     drawChart() {
@@ -352,8 +443,10 @@ document.addEventListener("alpine:init", () => {
                 this.summary.students_unpaid,
                 this.summary.students_no_fee || 0,
               ],
-              // emerald, sky, amber, rose, slate — sky matches the "Overpaid" badge
-              backgroundColor: ["#059669", "#0284c7", "#d97706", "#e11d48", "#94a3b8"],
+              // Green (paid — the one palette exception), soft gold (overpaid),
+              // light blue (partial), strong yellow (unpaid), slate (no fee).
+              // Matches the status badges exactly.
+              backgroundColor: ["#059669", "#caa02a", "#93c5fd", "#facc15", "#94a3b8"],
               borderWidth: 0,
             },
           ],
@@ -370,21 +463,29 @@ document.addEventListener("alpine:init", () => {
     },
 
     // The "Send Reminders Now" button — triggers the real WhatsApp flow.
+    // When a class is active, scopes the send to that class only.
     async sendReminders() {
       if (this.sending) return;
-      const outstanding = this.summary?.students_partial + this.summary?.students_unpaid;
+      const outstanding = (this.summary?.students_partial || 0) + (this.summary?.students_unpaid || 0);
+      const scope = this.activeClass
+        ? `parents in ${this.activeClass}`
+        : this.section !== "all"
+        ? `parents in ${this.section}`
+        : "every parent";
       if (!confirm(
-        `Send a WhatsApp reminder to every parent with an outstanding balance` +
+        `Send a WhatsApp reminder to ${scope} with an outstanding balance` +
         (outstanding ? ` (about ${outstanding} student${outstanding === 1 ? "" : "s"})?` : "?")
       )) return;
 
       this.sending = true;
       try {
-        // include_payment_link=false → WhatsApp reminder only, no Paystack link.
-        const result = await api(
-          `/reminders/send?school_id=${CONFIG.SCHOOL_ID}&include_payment_link=false`,
-          { method: "POST" }
-        );
+        let url = `/reminders/send?school_id=${CONFIG.SCHOOL_ID}&include_payment_link=false`;
+        if (this.activeClass) {
+          url += `&class_name=${encodeURIComponent(this.activeClass)}`;
+        } else if (this.section !== "all") {
+          url += `&section=${encodeURIComponent(this.section)}`;
+        }
+        const result = await api(url, { method: "POST" });
         Alpine.store("app").notify(result.message || "Reminders sent.");
         await this.load(); // refresh the mini-feed so the new entries show
       } catch (e) {
@@ -392,6 +493,16 @@ document.addEventListener("alpine:init", () => {
       } finally {
         this.sending = false;
       }
+    },
+
+    // Class tab helpers
+    get classTabsForSection() {
+      return this.classSummaries;
+    },
+
+    // How many students in a class need attention (partial + unpaid)
+    classAttentionCount(cls) {
+      return (cls.students_partial || 0) + (cls.students_unpaid || 0);
     },
 
     // expose helpers to the template
@@ -406,7 +517,7 @@ document.addEventListener("alpine:init", () => {
     students: [],
     search: "",
     statusFilter: "all", // 'all' | 'paid' | 'partial' | 'unpaid' | 'overpaid'
-    sectionFilter: "all", // 'all' | 'Nursery' | 'Primary' | 'Secondary'
+    sectionFilter: "all", // 'all' | 'Preschool' | 'Primary' | 'Smart Skills High School'
 
     // detail drawer
     drawerOpen: false,
@@ -417,6 +528,15 @@ document.addEventListener("alpine:init", () => {
     payOpen: false,
     paySubmitting: false,
     payForm: { fee_record_id: "", amount_naira: "", method: "cash", recorded_by: "", note: "" },
+
+    // online (Paystack) payment-link modal
+    linkOpen: false,
+    linkLoading: false,        // true while Paystack is generating the link
+    linkStudentName: "",
+    linkFeeLines: [],          // outstanding fee lines to pick from
+    linkForm: { fee_record_id: "", amount_naira: "" },
+    linkResult: null,          // { authorization_url, reference, amount_kobo } once generated
+    linkCopied: false,
 
     // add-student modal. A fee type + amount are REQUIRED here so a student can
     // never be created with no fees set (which used to look misleadingly "paid").
@@ -468,6 +588,16 @@ document.addEventListener("alpine:init", () => {
         const matchesSection = this.sectionFilter === "all" || s.section === this.sectionFilter;
         return matchesText && matchesStatus && matchesSection;
       });
+    },
+
+    // Returns the valid class list for whichever section is selected in addForm.
+    get addClassOptions() {
+      return SECTION_CLASSES[this.addForm.section] || [];
+    },
+
+    // Returns the valid class list for whichever section is selected in editForm.
+    get editClassOptions() {
+      return SECTION_CLASSES[this.editForm.section] || [];
     },
 
     statusBadge,
@@ -562,6 +692,74 @@ document.addEventListener("alpine:init", () => {
         Alpine.store("app").notify(e.message, "error");
       } finally {
         this.paySubmitting = false;
+      }
+    },
+
+    // --- online payment link (Paystack) ---
+    // Opens a modal scoped to a student, lets staff pick which fee line and
+    // (optionally) an amount, then calls /payments/initialize to generate a
+    // Paystack checkout link the parent can open to pay online. When they pay,
+    // Paystack's webhook updates the balance automatically.
+    openPayLink(student) {
+      this.linkStudentName = student.student_name;
+      this.linkForm = { fee_record_id: "", amount_naira: "" };
+      this.linkResult = null;
+      this.linkCopied = false;
+      this.linkFeeLines = [];
+      // Reuse the detail call to load this student's outstanding fee lines.
+      api(`/dashboard/students/${student.student_id}`)
+        .then((d) => {
+          this.linkFeeLines = (d.fee_records || []).filter(
+            (r) => (r.remaining_kobo ?? r.balance_kobo) > 0
+          );
+          if (this.linkFeeLines.length === 1) {
+            this.linkForm.fee_record_id = this.linkFeeLines[0].fee_record_id;
+          }
+        })
+        .catch((e) => Alpine.store("app").notify(e.message, "error"));
+      this.linkOpen = true;
+    },
+
+    closePayLink() {
+      this.linkOpen = false;
+    },
+
+    async generatePayLink() {
+      if (this.linkLoading) return;
+      if (!this.linkForm.fee_record_id) {
+        Alpine.store("app").notify("Please choose which fee this link is for.", "error");
+        return;
+      }
+      // Amount is optional — the backend defaults to the full remaining balance.
+      const body = { fee_record_id: Number(this.linkForm.fee_record_id) };
+      const naira = parseFloat(this.linkForm.amount_naira);
+      if (this.linkForm.amount_naira !== "" && (!naira || naira <= 0)) {
+        Alpine.store("app").notify("Enter a valid amount, or leave it blank for the full balance.", "error");
+        return;
+      }
+      if (naira > 0) body.amount_kobo = Math.round(naira * 100);
+
+      this.linkLoading = true;
+      try {
+        this.linkResult = await api(`/payments/initialize`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      } catch (e) {
+        Alpine.store("app").notify(e.message, "error");
+      } finally {
+        this.linkLoading = false;
+      }
+    },
+
+    async copyPayLink() {
+      if (!this.linkResult?.authorization_url) return;
+      try {
+        await navigator.clipboard.writeText(this.linkResult.authorization_url);
+        this.linkCopied = true;
+        setTimeout(() => (this.linkCopied = false), 2000);
+      } catch (e) {
+        Alpine.store("app").notify("Couldn't copy — select the link and copy it manually.", "error");
       }
     },
 
@@ -817,7 +1015,399 @@ document.addEventListener("alpine:init", () => {
     formatDateTime,
   }));
 
-  // -- Setup screen: manage the school's fee-type catalog ---------------------
+  // -- Terms screen: the academic terms the school runs -----------------------
+  // A term ("First Term 2025/2026") is the spine fees, payments and reports key
+  // off. Exactly one term is "current" at a time — the backend enforces that
+  // invariant (term_service.set_current_term); this screen just calls it.
+  Alpine.data("terms", () => ({
+    loading: true,
+    items: [],
+
+    // create/edit modal
+    formOpen: false,
+    submitting: false,
+    editing: null, // the term being edited, or null when creating
+    form: { name: "", start_date: "", end_date: "", is_current: false },
+
+    async init() {
+      await this.load();
+    },
+
+    async load() {
+      this.loading = true;
+      try {
+        this.items = await api(`/terms?school_id=${CONFIG.SCHOOL_ID}`);
+      } catch (e) {
+        Alpine.store("app").notify(e.message, "error");
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // A readable "1 Sep 2025 – 20 Dec 2025", or a partial/placeholder when unset.
+    dateRange(t) {
+      const fmt = (d) =>
+        new Date(d + "T00:00:00").toLocaleDateString("en-NG", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+      if (t.start_date && t.end_date) return `${fmt(t.start_date)} – ${fmt(t.end_date)}`;
+      if (t.start_date) return `From ${fmt(t.start_date)}`;
+      if (t.end_date) return `Until ${fmt(t.end_date)}`;
+      return "—";
+    },
+
+    openCreate() {
+      this.editing = null;
+      this.form = { name: "", start_date: "", end_date: "", is_current: false };
+      this.formOpen = true;
+    },
+
+    openEdit(t) {
+      this.editing = t;
+      this.form = {
+        name: t.name,
+        start_date: t.start_date || "",
+        end_date: t.end_date || "",
+        is_current: t.is_current,
+      };
+      this.formOpen = true;
+    },
+
+    closeForm() {
+      this.formOpen = false;
+    },
+
+    async submitForm() {
+      if (this.submitting) return;
+      const name = this.form.name.trim();
+      if (!name) {
+        Alpine.store("app").notify("Enter a term name.", "error");
+        return;
+      }
+      if (this.form.start_date && this.form.end_date && this.form.end_date < this.form.start_date) {
+        Alpine.store("app").notify("End date can't be before the start date.", "error");
+        return;
+      }
+
+      this.submitting = true;
+      try {
+        if (this.editing) {
+          await api(`/terms/${this.editing.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              name,
+              start_date: this.form.start_date || null,
+              end_date: this.form.end_date || null,
+            }),
+          });
+          Alpine.store("app").notify("Term updated.");
+        } else {
+          await api(`/terms`, {
+            method: "POST",
+            body: JSON.stringify({
+              school_id: CONFIG.SCHOOL_ID,
+              name,
+              start_date: this.form.start_date || null,
+              end_date: this.form.end_date || null,
+              is_current: this.form.is_current,
+            }),
+          });
+          Alpine.store("app").notify("Term created.");
+        }
+        this.formOpen = false;
+        await this.load();
+      } catch (e) {
+        Alpine.store("app").notify(e.message, "error");
+      } finally {
+        this.submitting = false;
+      }
+    },
+
+    async setCurrent(t) {
+      try {
+        await api(`/terms/${t.id}/set-current`, { method: "POST" });
+        Alpine.store("app").notify(`"${t.name}" is now the current term.`);
+        await this.load();
+      } catch (e) {
+        Alpine.store("app").notify(e.message, "error");
+      }
+    },
+
+    async remove(t) {
+      if (!confirm(`Delete the term "${t.name}"? This can't be undone.`)) return;
+      try {
+        await api(`/terms/${t.id}`, { method: "DELETE" });
+        Alpine.store("app").notify("Term deleted.");
+        await this.load();
+      } catch (e) {
+        // The backend refuses if any fee type still belongs to it — show that.
+        Alpine.store("app").notify(e.message, "error");
+      }
+    },
+  }));
+
+  // -- Reports screen: term-scoped report preview + PDF/CSV downloads ----------
+  // The on-screen preview renders the SAME TermReportResponse the PDF/CSV exports
+  // are built from (GET /api/v1/reports/terms/{id}), so what you see is what you
+  // download. The term dropdown is loaded from /terms and defaults to the current
+  // term. Downloads are plain <a> links in the HTML — the session cookie rides
+  // along same-origin, exactly like the receipt links.
+  Alpine.data("reports", () => ({
+    mode: "single", // "single" or "compare"
+    loading: false,
+    terms: [],
+    termId: null,
+    report: null,
+
+    // Term Comparison state (Part E)
+    termId1: null,
+    termId2: null,
+    comparison: null,
+    loadingComparison: false,
+
+    async init() {
+      await this.loadTerms();
+      if (this.termId) await this.load();
+      if (this.terms.length >= 2) {
+        this.termId1 = this.terms[1]?.id ?? this.terms[0]?.id;
+        this.termId2 = this.terms[0]?.id;
+      }
+    },
+
+    async loadTerms() {
+      try {
+        this.terms = await api(`/terms?school_id=${CONFIG.SCHOOL_ID}`);
+        // Default to the current term, else the newest (the API returns newest first).
+        const current = this.terms.find((t) => t.is_current);
+        this.termId = current ? current.id : this.terms[0]?.id ?? null;
+      } catch (e) {
+        Alpine.store("app").notify(e.message, "error");
+      }
+    },
+
+    async load() {
+      if (!this.termId) {
+        this.report = null;
+        return;
+      }
+      this.loading = true;
+      try {
+        this.report = await api(
+          `/reports/terms/${this.termId}?school_id=${CONFIG.SCHOOL_ID}`
+        );
+      } catch (e) {
+        this.report = null;
+        Alpine.store("app").notify(e.message, "error");
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async loadComparison() {
+      if (!this.termId1 || !this.termId2) {
+        this.comparison = null;
+        return;
+      }
+      this.loadingComparison = true;
+      try {
+        this.comparison = await api(
+          `/reports/compare?school_id=${CONFIG.SCHOOL_ID}&term_id_1=${this.termId1}&term_id_2=${this.termId2}`
+        );
+      } catch (e) {
+        this.comparison = null;
+        Alpine.store("app").notify(e.message, "error");
+      } finally {
+        this.loadingComparison = false;
+      }
+    },
+
+    nairaFromKobo,
+  }));
+
+
+  // -- Expenses screen: record & review the school's outgoing spending --------
+  // Money going OUT (fuel, repairs, textbooks, "Nepa Light", ...). Visible to and
+  // recordable by every admin; the acting admin is stamped server-side. Amounts
+  // are entered in naira and converted to kobo (× 100) on submit, mirroring the
+  // cash-payment modal. Expenses reduce the dashboard's Net Available — they never
+  // touch a student's fee balance.
+  Alpine.data("expenses", () => ({
+    loading: true,
+    items: [],
+    categories: [],
+    filterCategory: "",
+    totalKobo: 0,
+
+    // create/edit modal
+    formOpen: false,
+    submitting: false,
+    editing: null, // the expense being edited, or null when creating
+    form: {
+      category: "",
+      amount_naira: "",
+      purpose: "",
+      expense_date: "",
+      receipt_ref: "",
+      note: "",
+    },
+
+    async init() {
+      await this.loadCategories();
+      await this.load();
+    },
+
+    get totalDisplay() {
+      return nairaFromKobo(this.totalKobo);
+    },
+
+    async loadCategories() {
+      try {
+        this.categories = await api(`/expenses/categories`);
+      } catch (e) {
+        Alpine.store("app").notify(e.message, "error");
+      }
+    },
+
+    async load() {
+      this.loading = true;
+      try {
+        const q = this.filterCategory
+          ? `&category=${encodeURIComponent(this.filterCategory)}`
+          : "";
+        this.items = await api(`/expenses?school_id=${CONFIG.SCHOOL_ID}${q}`);
+        this.totalKobo = this.items.reduce(
+          (sum, e) => sum + (e.amount_kobo || 0),
+          0
+        );
+      } catch (e) {
+        Alpine.store("app").notify(e.message, "error");
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    setFilter(cat) {
+      this.filterCategory = cat;
+      this.load();
+    },
+
+    // "1 Sep 2025" from an ISO date string.
+    fmtDate(d) {
+      if (!d) return "—";
+      return new Date(d + "T00:00:00").toLocaleDateString("en-NG", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    },
+
+    _today() {
+      return new Date().toISOString().slice(0, 10);
+    },
+
+    openCreate() {
+      this.editing = null;
+      this.form = {
+        category: this.categories[0] || "",
+        amount_naira: "",
+        purpose: "",
+        expense_date: this._today(),
+        receipt_ref: "",
+        note: "",
+      };
+      this.formOpen = true;
+    },
+
+    openEdit(e) {
+      this.editing = e;
+      this.form = {
+        category: e.category,
+        amount_naira: (e.amount_kobo || 0) / 100,
+        purpose: e.purpose,
+        expense_date: e.expense_date || this._today(),
+        receipt_ref: e.receipt_ref || "",
+        note: e.note || "",
+      };
+      this.formOpen = true;
+    },
+
+    closeForm() {
+      this.formOpen = false;
+    },
+
+    async submitForm() {
+      if (this.submitting) return;
+
+      const category = this.form.category;
+      const purpose = (this.form.purpose || "").trim();
+      const amountNaira = Number(this.form.amount_naira);
+
+      if (!category) {
+        Alpine.store("app").notify("Pick a category.", "error");
+        return;
+      }
+      if (!purpose) {
+        Alpine.store("app").notify("Enter what the money was spent on.", "error");
+        return;
+      }
+      if (!amountNaira || amountNaira <= 0) {
+        Alpine.store("app").notify("Enter an amount greater than zero.", "error");
+        return;
+      }
+
+      // Naira → kobo. Round to avoid floating-point drift (e.g. 15000.1 * 100).
+      const amount_kobo = Math.round(amountNaira * 100);
+
+      const payload = {
+        category,
+        amount_kobo,
+        purpose,
+        expense_date: this.form.expense_date || null,
+        receipt_ref: this.form.receipt_ref?.trim() || null,
+        note: this.form.note?.trim() || null,
+      };
+
+      this.submitting = true;
+      try {
+        if (this.editing) {
+          await api(`/expenses/${this.editing.id}?school_id=${CONFIG.SCHOOL_ID}`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          });
+          Alpine.store("app").notify("Expense updated.");
+        } else {
+          await api(`/expenses?school_id=${CONFIG.SCHOOL_ID}`, {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+          Alpine.store("app").notify("Expense recorded.");
+        }
+        this.formOpen = false;
+        await this.load();
+      } catch (e) {
+        Alpine.store("app").notify(e.message, "error");
+      } finally {
+        this.submitting = false;
+      }
+    },
+
+    async remove(e) {
+      if (!confirm(`Delete this ${e.category} expense (${e.amount_display})?`)) return;
+      try {
+        await api(`/expenses/${e.id}?school_id=${CONFIG.SCHOOL_ID}`, {
+          method: "DELETE",
+        });
+        Alpine.store("app").notify("Expense deleted.");
+        await this.load();
+      } catch (err) {
+        Alpine.store("app").notify(err.message, "error");
+      }
+    },
+  }));
+
+
   // Fee TYPES are the templates (e.g. "Tuition — First Term", ₦75,000). Assigning
   // one to a student creates a fee RECORD (handled on the Parents screen). This
   // screen is where staff define and review those templates.
@@ -838,6 +1428,22 @@ document.addEventListener("alpine:init", () => {
     createOpen: false,
     createSubmitting: false,
     createForm: { category_id: "", section: "Primary", term: "", amount_naira: "" },
+
+    // start-new-term (rollover) modal
+    rolloverOpen: false,
+    rolloverSubmitting: false,
+    rolloverForm: { from_term: "", to_term: "", section: "", carry_forward: true },
+    rolloverResult: null, // summary returned after a successful rollover
+
+    // Returns the list of all sections for the fee-type section dropdown.
+    get sectionOptions() {
+      return SECTIONS;
+    },
+
+    // Distinct terms already defined in the catalog — used to pick the FROM term.
+    get existingTerms() {
+      return [...new Set(this.feeTypes.map((t) => t.term))].filter(Boolean);
+    },
 
     async init() {
       await Promise.all([this.load(), this.loadCategories()]);
@@ -980,6 +1586,55 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
+    // --- start a new term (rollover) ---
+    openRollover() {
+      this.rolloverResult = null;
+      this.rolloverForm = {
+        from_term: this.existingTerms[0] || "",
+        to_term: "",
+        section: "",
+        carry_forward: true,
+      };
+      this.rolloverOpen = true;
+    },
+
+    closeRollover() {
+      this.rolloverOpen = false;
+    },
+
+    async submitRollover() {
+      if (this.rolloverSubmitting) return;
+      const from = this.rolloverForm.from_term.trim();
+      const to = this.rolloverForm.to_term.trim();
+      if (!from || !to) {
+        Alpine.store("app").notify("Enter both the current and new term.", "error");
+        return;
+      }
+      if (from === to) {
+        Alpine.store("app").notify("The new term must differ from the current term.", "error");
+        return;
+      }
+      this.rolloverSubmitting = true;
+      try {
+        this.rolloverResult = await api(`/fees/terms/rollover`, {
+          method: "POST",
+          body: JSON.stringify({
+            school_id: CONFIG.SCHOOL_ID,
+            from_term: from,
+            to_term: to,
+            section: this.rolloverForm.section || null,
+            carry_forward: this.rolloverForm.carry_forward,
+          }),
+        });
+        Alpine.store("app").notify(`New term "${to}" started.`);
+        await this.load(); // refresh the fee-type list (new-term clones appear)
+      } catch (e) {
+        Alpine.store("app").notify(e.message, "error");
+      } finally {
+        this.rolloverSubmitting = false;
+      }
+    },
+
     nairaFromKobo,
   }));
 
@@ -1006,5 +1661,366 @@ document.addEventListener("alpine:init", () => {
     activityIcon,
     timeAgo,
     formatDateTime,
+  }));
+
+  // -- Admins management screen (Director-only) -------------------------------
+  Alpine.data("admins", () => ({
+    users: [],
+    loading: true,
+    formOpen: false,
+    editing: null,
+    submitting: false,
+    form: { email: "", password: "", role: "staff_admin" },
+
+    async init() {
+      await this.load();
+    },
+
+    async load() {
+      this.loading = true;
+      try {
+        this.users = await api(`/users?school_id=${CONFIG.SCHOOL_ID}`);
+      } catch (err) {
+        Alpine.store("app").notify(err.message, "error");
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    openCreate() {
+      this.editing = null;
+      this.form = { email: "", password: "", role: "staff_admin" };
+      this.formOpen = true;
+    },
+
+    openEdit(u) {
+      this.editing = u;
+      this.form = { email: u.email, password: "", role: u.role };
+      this.formOpen = true;
+    },
+
+    closeForm() {
+      this.formOpen = false;
+    },
+
+    async submitForm() {
+      if (!this.form.email.trim()) {
+        Alpine.store("app").notify("Email is required", "error");
+        return;
+      }
+      if (!this.editing && !this.form.password) {
+        Alpine.store("app").notify("Password is required for new accounts", "error");
+        return;
+      }
+      this.submitting = true;
+      try {
+        if (this.editing) {
+          const payload = { email: this.form.email, role: this.form.role };
+          if (this.form.password) payload.password = this.form.password;
+          await api(`/users/${this.editing.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+          Alpine.store("app").notify("Admin account updated.");
+        } else {
+          await api("/users", {
+            method: "POST",
+            body: JSON.stringify({ ...this.form, school_id: CONFIG.SCHOOL_ID }),
+          });
+          Alpine.store("app").notify("New admin account created.");
+        }
+        this.closeForm();
+        await this.load();
+      } catch (err) {
+        Alpine.store("app").notify(err.message, "error");
+      } finally {
+        this.submitting = false;
+      }
+    },
+
+    async toggleStatus(u) {
+      try {
+        await api(`/users/${u.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ is_active: !u.is_active }),
+        });
+        Alpine.store("app").notify(`Account ${!u.is_active ? 'activated' : 'deactivated'}.`);
+        await this.load();
+      } catch (err) {
+        Alpine.store("app").notify(err.message, "error");
+      }
+    },
+  }));
+
+  // -- Payroll & Staff Management screen (Director-only) ----------------------
+  Alpine.data("payroll", () => ({
+    subTab: "overview", // 'overview' | 'staff' | 'compare'
+    summary: null,
+    staffList: [],
+    terms: [],
+    termId: "",
+    filters: { class_taught: "", staff_role: "", payment_status: "" },
+    loading: true,
+    submitting: false,
+
+    // Staff modal
+    staffModalOpen: false,
+    editingStaff: null,
+    staffForm: {
+      id: null,
+      full_name: "",
+      role_title: "Teacher",
+      phone_number: "",
+      email: "",
+      bank_name: "",
+      account_number: "",
+      account_name: "",
+      classes_taught: [],
+    },
+
+    // Delete confirmation modal
+    deleteModalOpen: false,
+    staffToDelete: null,
+
+    // Term Salary Setup modal
+    salaryModalOpen: false,
+    salaryForm: { staff_id: "", term_id: "", amount_naira: "", note: "" },
+
+    // Payout modal
+    payoutModalOpen: false,
+    payoutForm: { payroll_record_id: "", staff_name: "", remaining_display: "", amount_naira: "", method: "bank_transfer", note: "" },
+
+    // Term comparison state
+    compareForm: { term_id_1: "", term_id_2: "" },
+    comparisonResult: null,
+
+    async init() {
+      await Promise.all([this.loadTerms(), this.loadStaff(), this.loadSummary()]);
+    },
+
+    async loadTerms() {
+      try {
+        this.terms = await api(`/terms?school_id=${CONFIG.SCHOOL_ID}`);
+        const current = this.terms.find(t => t.is_current);
+        if (current) {
+          this.termId = current.id;
+          if (this.terms.length >= 2) {
+            const previous = this.terms.find(t => t.id !== current.id);
+            if (previous) {
+              this.compareForm = { term_id_1: previous.id, term_id_2: current.id };
+            }
+          }
+        }
+      } catch (_) {}
+    },
+
+    async loadSummary() {
+      this.loading = true;
+      try {
+        let q = `/payroll/summary?school_id=${CONFIG.SCHOOL_ID}`;
+        if (this.termId) q += `&term_id=${this.termId}`;
+        if (this.filters.class_taught) q += `&class_taught=${encodeURIComponent(this.filters.class_taught)}`;
+        if (this.filters.staff_role) q += `&staff_role=${encodeURIComponent(this.filters.staff_role)}`;
+        if (this.filters.payment_status) q += `&payment_status=${encodeURIComponent(this.filters.payment_status)}`;
+
+        this.summary = await api(q);
+      } catch (err) {
+        Alpine.store("app").notify(err.message, "error");
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async loadStaff() {
+      try {
+        this.staffList = await api(`/staff?school_id=${CONFIG.SCHOOL_ID}`);
+      } catch (_) {}
+    },
+
+    // Staff Directory CRUD
+    openAddStaff() {
+      this.editingStaff = null;
+      this.staffForm = {
+        id: null,
+        full_name: "",
+        role_title: "Teacher",
+        phone_number: "",
+        email: "",
+        bank_name: "",
+        account_number: "",
+        account_name: "",
+        classes_taught: [],
+      };
+      this.staffModalOpen = true;
+    },
+
+    openEditStaff(s) {
+      this.editingStaff = s;
+      this.staffForm = {
+        id: s.id,
+        full_name: s.full_name,
+        role_title: s.role_title,
+        phone_number: s.phone_number,
+        email: s.email || "",
+        bank_name: s.bank_name || "",
+        account_number: s.account_number || "",
+        account_name: s.account_name || "",
+        classes_taught: [...(s.classes_taught || [])],
+      };
+      this.staffModalOpen = true;
+    },
+
+    toggleStaffClass(c) {
+      const idx = this.staffForm.classes_taught.indexOf(c);
+      if (idx >= 0) this.staffForm.classes_taught.splice(idx, 1);
+      else this.staffForm.classes_taught.push(c);
+    },
+
+    async saveStaff() {
+      if (!this.staffForm.full_name.trim() || !this.staffForm.phone_number.trim()) {
+        Alpine.store("app").notify("Full name and phone number are required.", "error");
+        return;
+      }
+      this.submitting = true;
+      try {
+        if (this.editingStaff) {
+          await api(`/staff/${this.editingStaff.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ ...this.staffForm }),
+          });
+          Alpine.store("app").notify("Staff member details updated.");
+        } else {
+          await api("/staff", {
+            method: "POST",
+            body: JSON.stringify({ ...this.staffForm, school_id: CONFIG.SCHOOL_ID }),
+          });
+          Alpine.store("app").notify("New staff member created.");
+        }
+        this.staffModalOpen = false;
+        await Promise.all([this.loadStaff(), this.loadSummary()]);
+      } catch (err) {
+        Alpine.store("app").notify(err.message, "error");
+      } finally {
+        this.submitting = false;
+      }
+    },
+
+    promptDeleteStaff(s) {
+      this.staffToDelete = s;
+      this.deleteModalOpen = true;
+    },
+
+    async confirmDeleteStaff() {
+      if (!this.staffToDelete) return;
+      this.submitting = true;
+      try {
+        await api(`/staff/${this.staffToDelete.id}`, { method: "DELETE" });
+        Alpine.store("app").notify(`Staff member '${this.staffToDelete.full_name}' deactivated. Historical payroll preserved.`);
+        this.deleteModalOpen = false;
+        this.staffToDelete = null;
+        await Promise.all([this.loadStaff(), this.loadSummary()]);
+      } catch (err) {
+        Alpine.store("app").notify(err.message, "error");
+      } finally {
+        this.submitting = false;
+      }
+    },
+
+    // Salary Setup & Payout Modals
+    openSalarySetup(staffId = "") {
+      this.salaryForm = {
+        staff_id: staffId || (this.staffList.length ? this.staffList[0].id : ""),
+        term_id: this.termId || (this.terms.length ? this.terms[0].id : ""),
+        amount_naira: "",
+        note: "",
+      };
+      this.salaryModalOpen = true;
+    },
+
+    async saveSalarySetup() {
+      const amount = parseFloat(this.salaryForm.amount_naira);
+      if (!this.salaryForm.staff_id || !this.salaryForm.term_id || isNaN(amount) || amount <= 0) {
+        Alpine.store("app").notify("Please select a staff member, term, and valid salary amount.", "error");
+        return;
+      }
+      this.submitting = true;
+      try {
+        await api("/payroll/setup", {
+          method: "POST",
+          body: JSON.stringify({
+            school_id: CONFIG.SCHOOL_ID,
+            staff_id: Number(this.salaryForm.staff_id),
+            term_id: Number(this.salaryForm.term_id),
+            amount_scheduled_kobo: Math.round(amount * 100),
+            note: this.salaryForm.note,
+          }),
+        });
+        Alpine.store("app").notify("Staff term salary scheduled.");
+        this.salaryModalOpen = false;
+        await this.loadSummary();
+      } catch (err) {
+        Alpine.store("app").notify(err.message, "error");
+      } finally {
+        this.submitting = false;
+      }
+    },
+
+    openPayout(record) {
+      this.payoutForm = {
+        payroll_record_id: record.id,
+        staff_name: record.staff_name,
+        remaining_display: record.remaining_display,
+        amount_naira: (record.remaining_kobo / 100).toString(),
+        method: "bank_transfer",
+        note: "",
+      };
+      this.payoutModalOpen = true;
+    },
+
+    async savePayout() {
+      const amount = parseFloat(this.payoutForm.amount_naira);
+      if (isNaN(amount) || amount <= 0) {
+        Alpine.store("app").notify("Please enter a valid payout amount.", "error");
+        return;
+      }
+      this.submitting = true;
+      try {
+        await api("/payroll/payments", {
+          method: "POST",
+          body: JSON.stringify({
+            payroll_record_id: Number(this.payoutForm.payroll_record_id),
+            amount_kobo: Math.round(amount * 100),
+            method: this.payoutForm.method,
+            note: this.payoutForm.note,
+          }),
+        });
+        Alpine.store("app").notify("Salary payout recorded & WhatsApp notification dispatched!");
+        this.payoutModalOpen = false;
+        await this.loadSummary();
+      } catch (err) {
+        Alpine.store("app").notify(err.message, "error");
+      } finally {
+        this.submitting = false;
+      }
+    },
+
+    // Term Comparison
+    async runComparison() {
+      if (!this.compareForm.term_id_1 || !this.compareForm.term_id_2) {
+        Alpine.store("app").notify("Please select two terms to compare.", "error");
+        return;
+      }
+      try {
+        this.comparisonResult = await api(`/payroll/compare?term_id_1=${this.compareForm.term_id_1}&term_id_2=${this.compareForm.term_id_2}&school_id=${CONFIG.SCHOOL_ID}`);
+      } catch (err) {
+        Alpine.store("app").notify(err.message, "error");
+      }
+    },
+
+    // PDF Export
+    downloadReportPdf() {
+      if (!this.termId) {
+        Alpine.store("app").notify("Please select a term to export.", "error");
+        return;
+      }
+      window.open(`/api/v1/payroll/reports/terms/${this.termId}/export.pdf`, "_blank");
+    },
   }));
 });

@@ -24,7 +24,8 @@ router = APIRouter(prefix="/api/v1/reminders", tags=["Reminders"])
 @router.post("/send")
 async def trigger_reminders(
     school_id: int = Query(..., description="Which school to send reminders for"),
-    class_name: str | None = Query(None, description="Filter by class (e.g., 'JSS 2')"),
+    section: str | None = Query(None, description="Filter by section (e.g. 'Primary')"),
+    class_name: str | None = Query(None, description="Filter by class (e.g. 'Primary 3')"),
     fee_type_id: int | None = Query(None, description="Filter by specific fee type"),
     student_id: int | None = Query(None, description="Send to only this one student's parent"),
     include_payment_link: bool = Query(
@@ -48,6 +49,7 @@ async def trigger_reminders(
     results = await send_reminders(
         db=db,
         school_id=school_id,
+        section=section,
         class_name=class_name,
         fee_type_id=fee_type_id,
         student_id=student_id,

@@ -94,6 +94,15 @@ async def initialize_transaction(
     Raises:
         httpx.HTTPStatusError: If Paystack returns a non-200 response
     """
+    # Check if using placeholder credentials
+    if "placeholder" in settings.paystack_secret_key.lower():
+        logger.warning(f"Using placeholder Paystack key — returning local mock checkout link for ref={reference}")
+        return {
+            "authorization_url": f"/api/v1/payments/mock-checkout-page/{reference}?amount={amount_kobo}",
+            "access_code": f"demo_access_code_{reference}",
+            "reference": reference,
+        }
+
     url = "https://api.paystack.co/transaction/initialize"
     headers = {
         "Authorization": f"Bearer {settings.paystack_secret_key}",
@@ -111,16 +120,66 @@ async def initialize_transaction(
     if callback_url:
         payload["callback_url"] = callback_url
 
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json=payload, headers=headers, timeout=30.0)
+            response.raise_for_status()
+            data = response.json()
+
+        if not data.get("status"):
+            logger.error(f"Paystack initialize failed: {data.get('message')}")
+            raise ValueError(f"Paystack error: {data.get('message')}")
+
+        logger.info(f"Paystack transaction initialized: ref={reference}")
+        return data["data"]
+    except Exception as e:
+        if not settings.is_production:
+            logger.warning(f"Paystack API call failed ({e}) — returning local mock checkout link for ref={reference}")
+            return {
+                "authorization_url": f"/api/v1/payments/mock-checkout-page/{reference}?amount={amount_kobo}",
+                "access_code": f"demo_access_code_{reference}",
+                "reference": reference,
+            }
+        raise
+
+
+async def verify_transaction(reference: str) -> dict:
+    """
+    Ask Paystack to confirm a transaction by reference (server-to-server).
+
+    The webhook body tells us what Paystack CLAIMS was paid, but the only
+    authoritative source is Paystack's own API. Before we credit money we call
+    this to re-confirm the transaction succeeded and how much was actually paid —
+    so a replayed or tampered body (even one that somehow passed signature check)
+    can't credit an amount Paystack never received.
+
+    Args:
+        reference: Our transaction reference (e.g. "JMK-42-1706547200")
+
+    Returns:
+        The `data` object from Paystack's verify response, which includes
+        `status` ('success'/'failed'/...) and `amount` (in kobo).
+
+    Raises:
+        httpx.HTTPStatusError: If Paystack returns a non-200 response
+        ValueError: If Paystack reports the verify call itself failed
+    """
+    url = f"https://api.paystack.co/transaction/verify/{reference}"
+    headers = {
+        "Authorization": f"Bearer {settings.paystack_secret_key}",
+        "Content-Type": "application/json",
+    }
+
     async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=payload, headers=headers, timeout=30.0)
+        response = await client.get(url, headers=headers, timeout=30.0)
         response.raise_for_status()
         data = response.json()
 
     if not data.get("status"):
-        logger.error(f"Paystack initialize failed: {data.get('message')}")
-        raise ValueError(f"Paystack error: {data.get('message')}")
+        logger.error(f"Paystack verify failed: {data.get('message')}")
+        raise ValueError(f"Paystack verify error: {data.get('message')}")
 
-    logger.info(f"Paystack transaction initialized: ref={reference}")
+    logger.info(f"Paystack transaction verified: ref={reference}")
     return data["data"]
 
 

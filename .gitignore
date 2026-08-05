@@ -21,6 +21,9 @@ env/
 *.db
 *.sqlite3
 
+# ---- Generated receipt PDFs (regenerable from payment data) ----
+storage/
+
 # ---- IDE ----
 .vscode/
 .idea/

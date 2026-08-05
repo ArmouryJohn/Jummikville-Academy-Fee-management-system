@@ -24,13 +24,15 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import engine, Base, SessionLocal
 from app.config import settings
+from app.constants import SECTION_CLASSES
 
 # Import all models so SQLAlchemy knows about them
-from app.models import School, Student, FeeCategory, FeeType, FeeRecord, Payment, ActivityLog, User  # noqa: F401
+from app.models import School, Student, FeeCategory, Term, FeeType, FeeRecord, Payment, ActivityLog, User, WebhookEvent  # noqa: F401
 
 # Import all routers
 from app.routers import (
     webhooks, payments, reminders, students, fees, dashboard, activity, auth,
+    terms, reports, expenses, users, payroll, staff,
 )
 from app.services.auth_deps import get_current_user
 from app.services.security import hash_password
@@ -99,7 +101,9 @@ def on_startup():
 
 # The eight fee categories the school starts with. Staff can add more from the
 # Setup screen — these are just sensible defaults so the system is usable on
-# day one without hand-entering them.
+# day one without hand-entering them. Categories are school-wide (not
+# section-specific); a 'Tuition Fee' category covers Preschool, Primary, and
+# Smart Skills High School alike.
 DEFAULT_FEE_CATEGORIES = [
     "Tuition Fee",
     "Textbook Fee",
@@ -242,8 +246,14 @@ app.include_router(payments.router, dependencies=_auth)
 app.include_router(reminders.router, dependencies=_auth)
 app.include_router(students.router, dependencies=_auth)
 app.include_router(fees.router, dependencies=_auth)
+app.include_router(terms.router, dependencies=_auth)
+app.include_router(reports.router, dependencies=_auth)
+app.include_router(expenses.router, dependencies=_auth)
 app.include_router(dashboard.router, dependencies=_auth)
 app.include_router(activity.router, dependencies=_auth)
+app.include_router(users.router, dependencies=_auth)
+app.include_router(payroll.router, dependencies=_auth)
+app.include_router(staff.router, dependencies=_auth)
 
 
 # --------------------------------------------------------------------------

@@ -1,0 +1,58 @@
+t=2026-08-01T23:20:48+0100 lvl=info msg="no configuration paths supplied"
+t=2026-08-01T23:20:48+0100 lvl=info msg="using configuration at default config path" path="C:\\Users\\MKPOUTO IDIBEKE\\AppData\\Local\\ngrok\\ngrok.yml"
+t=2026-08-01T23:20:48+0100 lvl=info msg="open config file" path="C:\\Users\\MKPOUTO IDIBEKE\\AppData\\Local\\ngrok\\ngrok.yml" err=<nil>
+t=2026-08-01T23:20:48+0100 lvl=info msg="FIPS 140 mode" enabled=false
+t=2026-08-01T23:20:48+0100 lvl=info msg="starting web service" obj=web addr=127.0.0.1:4040 allow_hosts=[]
+t=2026-08-01T23:20:49+0100 lvl=info msg="client session established" obj=tunnels.session
+t=2026-08-01T23:20:49+0100 lvl=info msg="tunnel session started" obj=tunnels.session
+t=2026-08-01T23:20:50+0100 lvl=info msg="started tunnel" obj=tunnels name=command_line addr=http://localhost:8000 url=https://ecosystem-perky-vascular.ngrok-free.dev
+t=2026-08-01T23:21:46+0100 lvl=info msg=start pg=/api/tunnels id=d72045b202b04006
+t=2026-08-01T23:21:46+0100 lvl=info msg=end pg=/api/tunnels id=d72045b202b04006 status=200 dur=0s
+t=2026-08-01T23:22:45+0100 lvl=info msg=start pg=/api/tunnels id=8ae430fbef6e754d
+t=2026-08-01T23:22:45+0100 lvl=info msg=end pg=/api/tunnels id=8ae430fbef6e754d status=200 dur=0s
+t=2026-08-01T23:22:50+0100 lvl=info msg="join connections" obj=join id=b7433db3198a l=127.0.0.1:8000 r=105.112.125.77:34658
+t=2026-08-01T23:28:22+0100 lvl=info msg=start pg=/api/tunnels id=b2c2b0ca7f57ba66
+t=2026-08-01T23:28:22+0100 lvl=info msg=end pg=/api/tunnels id=b2c2b0ca7f57ba66 status=200 dur=2.8591ms
+t=2026-08-01T23:28:37+0100 lvl=info msg="join connections" obj=join id=4f7c6be7b00f l=127.0.0.1:8000 r=105.112.125.77:35125
+t=2026-08-01T23:32:35+0100 lvl=eror msg="heartbeat timeout, terminating session" obj=tunnels.session obj=csess id=ad7bce13caba clientid=ba82a7920345165beb8510924ad78f74
+t=2026-08-01T23:32:35+0100 lvl=eror msg="session closed, starting reconnect loop" obj=tunnels.session obj=csess id=538c7686036b err="session closed"
+t=2026-08-01T23:32:45+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp 3.123.177.80:443: i/o timeout"
+t=2026-08-01T23:32:57+0100 lvl=info msg="client session established" obj=tunnels.session
+t=2026-08-01T23:32:57+0100 lvl=info msg="tunnel session started" obj=tunnels.session
+t=2026-08-02T03:05:58+0100 lvl=eror msg="heartbeat timeout, terminating session" obj=tunnels.session obj=csess id=1152046ca473 clientid=ba82a7920345165beb8510924ad78f74
+t=2026-08-02T03:06:01+0100 lvl=eror msg="session closed, starting reconnect loop" obj=tunnels.session obj=csess id=538c7686036b err="session closed"
+t=2026-08-02T03:06:09+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T03:06:11+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T03:06:12+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T03:06:14+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T15:38:35+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T15:38:43+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T15:38:47+0100 lvl=warn msg="failed to check for update" obj=updater err="Post \"https://update.ngrok-agent.com/check\": context deadline exceeded"
+t=2026-08-02T15:39:00+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T15:39:30+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T15:40:10+0100 lvl=info msg="client session established" obj=tunnels.session
+t=2026-08-02T15:40:10+0100 lvl=info msg="tunnel session started" obj=tunnels.session
+t=2026-08-02T16:02:55+0100 lvl=eror msg="heartbeat timeout, terminating session" obj=tunnels.session obj=csess id=6578b1235202 clientid=ba82a7920345165beb8510924ad78f74
+t=2026-08-02T16:02:56+0100 lvl=eror msg="session closed, starting reconnect loop" obj=tunnels.session obj=csess id=538c7686036b err="session closed"
+t=2026-08-02T16:02:56+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:02:56+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:02:57+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:02:59+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:03:03+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:03:11+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:03:27+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:03:57+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:04:27+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:04:57+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:05:27+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:05:57+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:06:27+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:06:58+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:07:28+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:07:58+0100 lvl=eror msg="failed to reconnect session" obj=tunnels.session err="failed to dial ngrok server with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host"
+t=2026-08-02T16:08:33+0100 lvl=info msg="client session established" obj=tunnels.session
+t=2026-08-02T16:08:33+0100 lvl=info msg="tunnel session started" obj=tunnels.session
+t=2026-08-02T16:36:03+0100 lvl=eror msg="session closed, starting reconnect loop" obj=tunnels.session obj=csess id=538c7686036b err="read tcp 10.171.222.150:54861->3.125.92.105:443: wsarecv: An existing connection was forcibly closed by the remote host."
+t=2026-08-02T16:36:10+0100 lvl=info msg="client session established" obj=tunnels.session
+t=2026-08-02T16:36:10+0100 lvl=info msg="tunnel session started" obj=tunnels.session
+t=2026-08-02T16:36:18+0100 lvl=eror msg="heartbeat timeout, terminating session" obj=tunnels.session obj=csess id=7890b9a6154f clientid=ba82a7920345165beb8510924ad78f74
