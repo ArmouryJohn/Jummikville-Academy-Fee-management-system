@@ -12,7 +12,7 @@ so all payment methods get the same balance updates and WhatsApp messages.
 import logging
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Form
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.orm import Session, joinedload
 
@@ -26,9 +26,10 @@ from app.schemas.payment import (
 )
 from app.services.auth_deps import get_current_user
 from app.services.payment_service import record_payment
-from app.services import receipt_service
+from app.services import receipt_service, twilio_wa
 from app.services.paystack import initialize_transaction, generate_reference, parse_fee_record_id_from_reference
 from app.utils.formatting import kobo_to_naira
+
 
 logger = logging.getLogger(__name__)
 
@@ -157,11 +158,31 @@ async def initialize_payment(
             },
         )
 
+        auth_url = paystack_data["authorization_url"]
+
+        # Automatically send the payment link via WhatsApp to the parent
+        if student.parent_phone:
+            try:
+                fee_name = fee_record.fee_type.name if fee_record.fee_type else "School Fee"
+                amount_display = kobo_to_naira(amount)
+                twilio_wa.send_payment_link_whatsapp(
+                    parent_name=student.parent_name,
+                    student_name=student.student_name,
+                    parent_phone=student.parent_phone,
+                    fee_name=fee_name,
+                    amount_display=amount_display,
+                    payment_link=auth_url,
+                    school_name=student.school.name if student.school else "Jummikville Academy",
+                )
+            except Exception as wa_err:
+                logger.warning(f"WhatsApp link dispatch failed: {wa_err}")
+
         return PaymentLinkResponse(
-            authorization_url=paystack_data["authorization_url"],
+            authorization_url=auth_url,
             reference=paystack_data["reference"],
             amount_kobo=amount,
         )
+
 
     except Exception as e:
         logger.error(f"Paystack initialization failed: {e}")
@@ -175,4 +196,159 @@ async def initialize_payment(
             status_code=502,
             detail=f"Failed to generate payment link: {err_msg}"
         )
+
+
+@router.get("/mock-checkout-page/{reference}", response_class=HTMLResponse)
+def mock_checkout_page(
+    reference: str,
+    amount: int = 0,
+    db: Session = Depends(get_db),
+):
+    """
+    Local development mock Paystack checkout page.
+
+    Renders a realistic Paystack payment checkout page so parents/admins can test
+    online payment flows in local dev mode without live Paystack secrets.
+    """
+    fee_record_id = parse_fee_record_id_from_reference(reference)
+    fee_record = None
+    if fee_record_id:
+        fee_record = (
+            db.query(FeeRecord)
+            .options(
+                joinedload(FeeRecord.student),
+                joinedload(FeeRecord.fee_type),
+            )
+            .filter(FeeRecord.id == fee_record_id)
+            .first()
+        )
+
+    student_name = fee_record.student.student_name if (fee_record and fee_record.student) else "Student"
+    fee_name = fee_record.fee_type.name if (fee_record and fee_record.fee_type) else "School Fee"
+    amount_display = kobo_to_naira(amount) if amount > 0 else (fee_record.remaining_display if fee_record else "₦0.00")
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paystack Checkout — Jummikville Academy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-900 font-sans min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100">
+        <!-- Paystack Header -->
+        <div class="bg-slate-900 p-6 text-white text-center border-b border-slate-800">
+            <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-teal-500/20 text-teal-400 mb-3 text-xl font-bold">
+                J
+            </div>
+            <h2 class="text-lg font-bold">Jummikville Academy</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Online Fee Checkout (Demo Sandbox)</p>
+            <div class="mt-4 bg-slate-800/80 rounded-xl p-3 text-center border border-slate-700/50">
+                <span class="text-xs text-slate-400 block uppercase tracking-wider font-semibold">Amount to Pay</span>
+                <span class="text-2xl font-bold text-teal-400">{amount_display}</span>
+            </div>
+        </div>
+
+        <!-- Body Details -->
+        <div class="p-6 space-y-4">
+            <div class="rounded-xl bg-slate-50 p-4 space-y-2 text-sm text-slate-600">
+                <div class="flex justify-between"><span class="text-slate-400">Student:</span><span class="font-semibold text-slate-800">{student_name}</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Fee Category:</span><span class="font-semibold text-slate-800">{fee_name}</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Reference:</span><span class="font-mono text-xs text-slate-500">{reference}</span></div>
+            </div>
+
+            <form action="/api/v1/payments/mock-checkout-page/{reference}/pay?amount_kobo={amount}" method="POST">
+                <button type="submit" class="w-full py-3.5 bg-teal-500 hover:bg-teal-600 text-white font-semibold rounded-xl shadow-lg shadow-teal-500/25 transition flex items-center justify-center gap-2">
+                    🔒 Pay {amount_display} (Simulate Success)
+                </button>
+            </form>
+            <p class="text-center text-xs text-slate-400">Demo checkout sandbox. Clicking pay records this transaction automatically.</p>
+        </div>
+    </div>
+</body>
+</html>"""
+    return HTMLResponse(content=html_content)
+
+
+@router.post("/mock-checkout-page/{reference}/pay", response_class=HTMLResponse)
+def complete_mock_checkout(
+    reference: str,
+    amount_kobo: int = 0,
+    db: Session = Depends(get_db),
+):
+
+    """
+    Simulate successful Paystack payment for local dev mode.
+    """
+    fee_record_id = parse_fee_record_id_from_reference(reference)
+    if not fee_record_id:
+        raise HTTPException(status_code=400, detail="Invalid reference format")
+
+    fee_record = (
+        db.query(FeeRecord)
+        .options(joinedload(FeeRecord.student))
+        .filter(FeeRecord.id == fee_record_id)
+        .first()
+    )
+    if not fee_record:
+        raise HTTPException(status_code=404, detail="Fee record not found")
+
+    pay_amount = amount_kobo if amount_kobo > 0 else fee_record.balance_kobo
+    if pay_amount <= 0:
+        pay_amount = fee_record.total_fees_kobo
+
+    payment = record_payment(
+        db=db,
+        fee_record_id=fee_record.id,
+        amount_kobo=pay_amount,
+        method="paystack",
+        recorded_by="Paystack Checkout (Online)",
+        note=f"Paystack payment completed via reference {reference}",
+        paystack_reference=reference,
+    )
+
+    amount_display = kobo_to_naira(payment.amount_kobo)
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Successful — Jummikville Academy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-900 font-sans min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 text-center space-y-5 border border-slate-100">
+        <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold">
+            ✓
+        </div>
+        <h2 class="text-xl font-bold text-slate-900">Payment Successful!</h2>
+        <p class="text-sm text-slate-500">
+            Payment of <strong class="text-slate-800">{amount_display}</strong> for <strong>{fee_record.student.student_name}</strong> has been received and confirmed.
+        </p>
+
+        <div class="rounded-xl bg-slate-50 p-4 text-xs text-slate-500 text-left space-y-1">
+            <p>✓ Receipt PDF generated & stored</p>
+            <p>✓ Student balance updated automatically</p>
+            <p>✓ WhatsApp confirmation sent to parent</p>
+        </div>
+
+        <div class="space-y-2 pt-2">
+            <a href="/api/v1/payments/{payment.id}/receipt" target="_blank"
+               class="block w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl text-sm transition">
+               📄 Download PDF Receipt
+            </a>
+            <a href="/"
+               class="block w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition">
+               Return to App Dashboard
+            </a>
+        </div>
+    </div>
+</body>
+</html>"""
+    return HTMLResponse(content=html_content)
+
 

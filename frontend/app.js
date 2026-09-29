@@ -745,6 +745,7 @@ document.addEventListener("alpine:init", () => {
           method: "POST",
           body: JSON.stringify(body),
         });
+        Alpine.store("app").notify("Payment link generated & sent to parent via WhatsApp!");
       } catch (e) {
         Alpine.store("app").notify(e.message, "error");
       } finally {
@@ -993,12 +994,13 @@ document.addEventListener("alpine:init", () => {
 
       this.remindingId = studentId;
       try {
-        // student_id scopes it to one parent; include_payment_link=false → no Paystack link.
+        // student_id scopes it to one parent; include_payment_link=true → include Paystack link.
         const result = await api(
-          `/reminders/send?school_id=${CONFIG.SCHOOL_ID}&student_id=${studentId}&include_payment_link=false`,
+          `/reminders/send?school_id=${CONFIG.SCHOOL_ID}&student_id=${studentId}&include_payment_link=true`,
           { method: "POST" }
         );
-        Alpine.store("app").notify(result.message || "Reminder sent.");
+        Alpine.store("app").notify(result.message || "Reminder sent with payment link.");
+
         // If the drawer is open on this student, refresh its message history.
         if (this.detail && this.detail.student_id === studentId) {
           await this.openDetail(studentId);

@@ -13,14 +13,14 @@ Automated school fee tracking, Paystack payment integration, and WhatsApp notifi
 
 ## Tech Stack
 
-| Technology | Purpose |
-|---|---|
-| Python 3.11+ | Language |
-| FastAPI | Web framework & API |
-| SQLAlchemy | Database ORM |
-| SQLite / PostgreSQL | Database |
-| Paystack | Online payments |
-| Twilio | WhatsApp messaging |
+| Technology          | Purpose             |
+| ------------------- | ------------------- |
+| Python 3.11+        | Language            |
+| FastAPI             | Web framework & API |
+| SQLAlchemy          | Database ORM        |
+| SQLite / PostgreSQL | Database            |
+| Paystack            | Online payments     |
+| Twilio              | WhatsApp messaging  |
 
 ## Quick Start
 
@@ -75,38 +75,43 @@ Open http://localhost:8000/docs in your browser — FastAPI generates interactiv
 ## API Endpoints
 
 ### Students
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/v1/students/` | Create a student |
-| GET | `/api/v1/students/` | List students |
-| GET | `/api/v1/students/{id}` | Get a student |
-| PATCH | `/api/v1/students/{id}` | Update a student |
+
+| Method | Endpoint                  | Description      |
+| ------ | ------------------------- | ---------------- |
+| POST   | `/api/v1/students/`     | Create a student |
+| GET    | `/api/v1/students/`     | List students    |
+| GET    | `/api/v1/students/{id}` | Get a student    |
+| PATCH  | `/api/v1/students/{id}` | Update a student |
 
 ### Fees
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/v1/fees/types` | Create a fee type |
-| GET | `/api/v1/fees/types` | List fee types |
-| POST | `/api/v1/fees/records` | Assign fee to a student |
-| POST | `/api/v1/fees/records/bulk` | Assign fee to multiple students |
-| GET | `/api/v1/fees/records` | List fee records |
-| GET | `/api/v1/fees/records/{id}` | Get a fee record |
+
+| Method | Endpoint                      | Description                     |
+| ------ | ----------------------------- | ------------------------------- |
+| POST   | `/api/v1/fees/types`        | Create a fee type               |
+| GET    | `/api/v1/fees/types`        | List fee types                  |
+| POST   | `/api/v1/fees/records`      | Assign fee to a student         |
+| POST   | `/api/v1/fees/records/bulk` | Assign fee to multiple students |
+| GET    | `/api/v1/fees/records`      | List fee records                |
+| GET    | `/api/v1/fees/records/{id}` | Get a fee record                |
 
 ### Payments
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/v1/payments/cash` | Record cash/POS payment |
-| POST | `/api/v1/payments/initialize` | Generate Paystack payment link |
+
+| Method | Endpoint                        | Description                    |
+| ------ | ------------------------------- | ------------------------------ |
+| POST   | `/api/v1/payments/cash`       | Record cash/POS payment        |
+| POST   | `/api/v1/payments/initialize` | Generate Paystack payment link |
 
 ### Webhooks
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/v1/webhooks/paystack` | Paystack webhook (automated) |
+
+| Method | Endpoint                      | Description                  |
+| ------ | ----------------------------- | ---------------------------- |
+| POST   | `/api/v1/webhooks/paystack` | Paystack webhook (automated) |
 
 ### Reminders
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/v1/reminders/send` | Send fee reminders |
+
+| Method | Endpoint                   | Description        |
+| ------ | -------------------------- | ------------------ |
+| POST   | `/api/v1/reminders/send` | Send fee reminders |
 
 ## Testing Paystack Webhooks Locally
 
@@ -121,6 +126,7 @@ ngrok http 8000
 ```
 
 Copy the `https://xxxxx.ngrok.io` URL and set it as your webhook URL in the Paystack dashboard:
+
 - URL: `https://xxxxx.ngrok.io/api/v1/webhooks/paystack`
 - Events: `charge.success`
 
