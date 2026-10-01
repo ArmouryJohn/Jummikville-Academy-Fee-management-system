@@ -1,0 +1,40 @@
+{
+  "name": "Jummikville Academy — Fee Management",
+  "short_name": "Jummikville",
+  "description": "School fee tracking and management system for Jummikville Academy",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e3a8a",
+  "theme_color": "#1e3a8a",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/assets/images/icon-192.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/images/icon-512.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "finance", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/?page=dashboard",
+      "description": "Open the fee management dashboard"
+    },
+    {
+      "name": "Students",
+      "url": "/?page=students",
+      "description": "View and manage students"
+    }
+  ]
+}

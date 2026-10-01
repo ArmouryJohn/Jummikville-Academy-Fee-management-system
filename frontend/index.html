@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Jummikville Academy — Fee Management</title>
 
+    <!-- PWA: makes the app installable on Android, iOS, and desktop Chrome/Edge -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#1e3a8a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Jummikville" />
+    <link rel="apple-touch-icon" href="/assets/images/icon-512.jpg" />
+
     <!--
       DEPENDENCIES (all via CDN — no build step):
       - Tailwind CSS : styling. The config block below sets our calm brand palette.
@@ -2970,6 +2979,21 @@
           card.style.setProperty("--ry", "0deg");
         }, { passive: true });
       })();
+    </script>
+
+    <!-- PWA: register service worker for offline support + installability -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js')
+            .then(function (reg) {
+              console.log('[PWA] Service worker registered:', reg.scope);
+            })
+            .catch(function (err) {
+              console.warn('[PWA] Service worker registration failed:', err);
+            });
+        });
+      }
     </script>
   </body>
 </html>
