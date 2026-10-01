@@ -21,6 +21,23 @@ from app.config import settings
 
 
 # --------------------------------------------------------------------------
+# Fix database URL for Render / Heroku compatibility
+# --------------------------------------------------------------------------
+# Render provides DATABASE_URL as "postgres://..." or "postgresql://..."
+# but SQLAlchemy 2.x with psycopg2 requires "postgresql+psycopg2://..."
+def _get_db_url() -> str:
+    url = settings.database_url
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg2://", 1)
+    if url.startswith("postgresql://") and "+psycopg" not in url:
+        return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    return url
+
+
+_DB_URL = _get_db_url()
+
+
+# --------------------------------------------------------------------------
 # Engine: the actual connection to the database
 # --------------------------------------------------------------------------
 # check_same_thread=False is only needed for SQLite (it's single-threaded
@@ -30,7 +47,7 @@ if settings.database_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
 
 engine = create_engine(
-    settings.database_url,
+    _DB_URL,
     connect_args=connect_args,
     # Echo SQL statements to console in development (helpful for learning)
     echo=(not settings.is_production),
