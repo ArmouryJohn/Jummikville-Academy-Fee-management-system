@@ -96,6 +96,7 @@ def on_startup():
     logger.info("Database tables ready.")
 
     _seed_admin_user()
+    _seed_bursar_user()   # seeds only when BURSAR_EMAIL is set in env
     _seed_fee_categories()
 
 
@@ -160,72 +161,114 @@ def _seed_fee_categories():
         db.close()
 
 
+def _seed_user_account(
+    email: str,
+    password: str | None,
+    role: str,
+    label: str,
+    env_var_name: str,
+) -> None:
+    """
+    Shared helper: ensure a user account with *email* exists.
+
+    Only ever CREATES the user — if the email is already in the database we
+    leave it untouched (so a manually changed password is never overwritten).
+
+    Args:
+        email:        Login email (stored lowercase).
+        password:     Plain-text password from env, or None to auto-generate.
+        role:         SQLAlchemy User.role value ('admin' or 'staff_admin').
+        label:        Human-readable label used in log messages.
+        env_var_name: Name of the env var that holds the password, shown in
+                      the one-time warning when a password is auto-generated.
+    """
+    db = SessionLocal()
+    try:
+        existing = db.query(User).filter(User.email == email.lower()).first()
+        if existing:
+            logger.info(f"{label} account present: {existing.email} (id={existing.id})")
+            return
+
+        # Ensure the school row exists (admin seeder creates it first, but be
+        # defensive in case seeding order ever changes).
+        school = db.query(School).filter(School.slug == "jummikville").first()
+        if not school:
+            school = School(
+                name="Jummikville Academy",
+                slug="jummikville",
+                email=email,
+            )
+            db.add(school)
+            db.flush()
+            logger.info(f"Created default school: {school.name} (id={school.id})")
+
+        generated = password is None
+        password = password or secrets.token_urlsafe(12)
+
+        user = User(
+            school_id=school.id,
+            email=email.lower(),
+            hashed_password=hash_password(password),
+            role=role,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+
+        logger.info(f"Seeded {label} account: {user.email} (role={user.role})")
+        if generated:
+            logger.warning(
+                "=" * 68
+                + f"\n  {label.upper()} LOGIN CREATED\n"
+                + f"  Email:    {email}\n"
+                + f"  Password: {password}\n"
+                + f"  Save this now — it will NOT be shown again. "
+                + f"Set {env_var_name} in .env / Render env vars to choose your own.\n"
+                + "=" * 68
+            )
+    except Exception:
+        db.rollback()
+        logger.exception(f"Failed to seed {label} user.")
+    finally:
+        db.close()
+
+
 def _seed_admin_user():
     """
-    Ensure there's at least one admin account to log in with.
-
-    Runs on every startup but only ever CREATES the admin once — if the
-    configured admin email already exists, we leave it untouched (so we never
-    reset a password someone has since changed).
+    Ensure there's at least one Director/admin account to log in with.
 
     Password precedence:
     1. ADMIN_PASSWORD from the environment/.env — used as-is.
     2. Otherwise a strong random password is generated and printed to the log
        ONCE. Grab it from the startup output, log in, and change it.
     """
-    db = SessionLocal()
-    try:
-        existing = db.query(User).filter(User.email == settings.admin_email).first()
-        if existing:
-            logger.info(f"Admin account present: {existing.email} (id={existing.id})")
-            return
+    _seed_user_account(
+        email=settings.admin_email,
+        password=settings.admin_password,
+        role="admin",
+        label="Admin",
+        env_var_name="ADMIN_PASSWORD",
+    )
 
-        # The admin has to belong to a school. Reuse the seeded Jummikville
-        # school if it's there; otherwise create a minimal default so login
-        # works even on a fresh database that hasn't run seed.py.
-        school = db.query(School).filter(School.slug == "jummikville").first()
-        if not school:
-            school = School(
-                name="Jummikville Academy",
-                slug="jummikville",
-                email=settings.admin_email,
-            )
-            db.add(school)
-            db.flush()
-            logger.info(f"Created default school: {school.name} (id={school.id})")
 
-        # Use the configured password, or mint a random one and show it once.
-        generated = settings.admin_password is None
-        password = settings.admin_password or secrets.token_urlsafe(12)
+def _seed_bursar_user():
+    """
+    Optionally seed a second account for the bursar (staff_admin role).
 
-        admin = User(
-            school_id=school.id,
-            email=settings.admin_email,
-            hashed_password=hash_password(password),
-            role="admin",
-            is_active=True,
-        )
-        db.add(admin)
-        db.commit()
+    Only runs when BURSAR_EMAIL is set in the environment / .env.
+    Set BURSAR_PASSWORD too, otherwise a random password is generated.
+    """
+    if not settings.bursar_email:
+        logger.info("BURSAR_EMAIL not set — skipping bursar account seeding.")
+        return
 
-        logger.info(f"Seeded admin account: {admin.email}")
-        if generated:
-            # Printed once, and only when we generated it. Never log a password
-            # the operator chose themselves.
-            logger.warning(
-                "=" * 68
-                + f"\n  ADMIN LOGIN CREATED\n"
-                + f"  Email:    {settings.admin_email}\n"
-                + f"  Password: {password}\n"
-                + "  Save this now — it will NOT be shown again. "
-                + "Set ADMIN_PASSWORD in .env to choose your own.\n"
-                + "=" * 68
-            )
-    except Exception:
-        db.rollback()
-        logger.exception("Failed to seed admin user.")
-    finally:
-        db.close()
+    _seed_user_account(
+        email=settings.bursar_email,
+        password=settings.bursar_password,
+        role="staff_admin",
+        label="Bursar",
+        env_var_name="BURSAR_PASSWORD",
+    )
 
 
 # --------------------------------------------------------------------------

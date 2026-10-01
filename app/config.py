@@ -71,17 +71,34 @@ class Settings(BaseSettings):
             "request refreshes it, so this is an IDLE timeout, not a hard cap."
         ),
     )
-    # First/seed admin account — created on startup only if it doesn't exist yet.
+    # First/seed admin account (Director) — created on startup only if absent.
     admin_email: str = Field(
         default="admin@jummikville.sch",
-        description="Email for the seeded admin account (the school owner/bursar).",
+        description="Email for the seeded Director/admin account.",
     )
     admin_password: str | None = Field(
         default=None,
         description=(
             "Password for the seeded admin. If left unset, a random one is "
             "generated and printed to the startup log ONCE. Set ADMIN_PASSWORD "
-            "in .env to choose your own."
+            "in .env (or Render env vars) to choose your own."
+        ),
+    )
+
+    # Optional second seed account (Bursar / staff_admin).
+    # Set BURSAR_EMAIL + BURSAR_PASSWORD in Render or .env to auto-create it.
+    bursar_email: str | None = Field(
+        default=None,
+        description=(
+            "Email for an optional second seeded account (staff_admin role). "
+            "Leave unset to skip seeding. Example: bursar@jummikville.sch"
+        ),
+    )
+    bursar_password: str | None = Field(
+        default=None,
+        description=(
+            "Password for the seeded bursar. If BURSAR_EMAIL is set but this is "
+            "blank, a random password is generated and printed to the log once."
         ),
     )
 
