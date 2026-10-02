@@ -561,6 +561,15 @@ document.addEventListener("alpine:init", () => {
     // per-parent reminder
     remindingId: null,
 
+    // delete student modal
+    deleteConfirmOpen: false,
+    deleteTarget: null, // { student_id, student_name, parent_name }
+    deleting: false,
+
+    // reset all data modal (Director only)
+    resetConfirmOpen: false,
+    resetting: false,
+
     async init() {
       await this.load();
     },
@@ -1009,6 +1018,69 @@ document.addEventListener("alpine:init", () => {
         Alpine.store("app").notify(e.message, "error");
       } finally {
         this.remindingId = null;
+      }
+    },
+
+    // --- delete student permanently ---
+    confirmDelete(student) {
+      this.deleteTarget = {
+        student_id: student.student_id || student.id,
+        student_name: student.student_name,
+        parent_name: student.parent_name,
+      };
+      this.deleteConfirmOpen = true;
+    },
+
+    closeDeleteConfirm() {
+      this.deleteConfirmOpen = false;
+      this.deleteTarget = null;
+    },
+
+    async executeDelete() {
+      if (!this.deleteTarget || this.deleting) return;
+      this.deleting = true;
+      try {
+        const res = await api(`/students/${this.deleteTarget.student_id}?permanent=true`, {
+          method: "DELETE",
+        });
+        Alpine.store("app").notify(res.message || "Student and parent data deleted successfully.");
+        const deletedId = this.deleteTarget.student_id;
+        this.closeDeleteConfirm();
+        if (this.drawerOpen && (this.detail?.student_id === deletedId || this.detail?.id === deletedId)) {
+          this.closeDetail();
+        }
+        await this.load();
+      } catch (e) {
+        Alpine.store("app").notify(e.message, "error");
+      } finally {
+        this.deleting = false;
+      }
+    },
+
+    // --- reset all student data to start fresh (Director only) ---
+    confirmResetAll() {
+      this.resetConfirmOpen = true;
+    },
+
+    closeResetConfirm() {
+      this.resetConfirmOpen = false;
+    },
+
+    async executeResetAll() {
+      if (this.resetting) return;
+      this.resetting = true;
+      try {
+        const res = await api(`/students/reset-data`, {
+          method: "POST",
+        });
+        Alpine.store("app").notify(res.message || "All student records cleared. Fresh database ready.");
+        this.closeResetConfirm();
+        if (this.drawerOpen) this.closeDetail();
+        await this.load();
+      } catch (e) {
+        Alpine.store("app").notify(e.message, "error");
+      } finally {
+        this.resetting = false;
       }
     },
 

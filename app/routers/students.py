@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Student, School
+from app.models import Student, School, FeeRecord, Payment, ActivityLog
 from app.schemas.student import StudentCreate, StudentUpdate, StudentResponse
 from app.services.auth_deps import require_director
 from app.utils.formatting import normalize_phone
@@ -113,15 +113,80 @@ def update_student(
 @router.delete("/{student_id}")
 def delete_student(
     student_id: int,
+    permanent: bool = False,
     db: Session = Depends(get_db),
     actor=Depends(require_director),
 ):
-    """Deactivate/delete a student record (Director only)."""
+    """Deactivate or permanently delete a student record (Director only)."""
     student = db.query(Student).filter(Student.id == student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
+    student_name = student.student_name
+    parent_name = student.parent_name
+    school_id = student.school_id
+
+    if permanent:
+        # 1. Clean up activity logs associated with this student
+        db.query(ActivityLog).filter(ActivityLog.student_id == student_id).delete(synchronize_session=False)
+
+        # 2. Delete payments belonging to the student's fee records explicitly
+        fee_record_ids = [r.id for r in student.fee_records]
+        if fee_record_ids:
+            db.query(Payment).filter(Payment.fee_record_id.in_(fee_record_ids)).delete(synchronize_session=False)
+            db.query(FeeRecord).filter(FeeRecord.id.in_(fee_record_ids)).delete(synchronize_session=False)
+
+        # 3. Delete the student
+        db.delete(student)
+
+        # 4. Audit entry
+        db.add(
+            ActivityLog(
+                school_id=school_id,
+                student_id=None,
+                action="student_deleted",
+                description=f"Student record for '{student_name}' (Parent: {parent_name}) permanently deleted by Director {actor.email}",
+            )
+        )
+        db.commit()
+        logger.info(f"Student '{student_name}' (id={student_id}) permanently deleted by Director {actor.email}")
+        return {"status": "ok", "message": f"Student '{student_name}' permanently deleted"}
+
+    # Soft delete (deactivate)
     student.is_active = False
+    db.add(
+        ActivityLog(
+            school_id=school_id,
+            student_id=student.id,
+            action="student_deactivated",
+            description=f"Student record for '{student_name}' deactivated by Director {actor.email}",
+        )
+    )
     db.commit()
     logger.info(f"Student deactivated by Director {actor.email}: id={student_id}")
-    return {"status": "ok", "message": "Student deactivated"}
+    return {"status": "ok", "message": f"Student '{student_name}' removed"}
+
+
+@router.post("/reset-data")
+def reset_student_data(
+    db: Session = Depends(get_db),
+    actor=Depends(require_director),
+):
+    """
+    Clear all current student transactional data (students, fee records, payments, activity logs)
+    so the system is fresh for real data entry.
+    Keeps schools, fee categories, fee types, and user accounts intact.
+    Director only.
+    """
+    p_count = db.query(Payment).delete(synchronize_session=False)
+    fr_count = db.query(FeeRecord).delete(synchronize_session=False)
+    s_count = db.query(Student).delete(synchronize_session=False)
+    al_count = db.query(ActivityLog).delete(synchronize_session=False)
+    db.commit()
+
+    logger.info(f"Data reset by Director {actor.email}: {s_count} students, {fr_count} fee records, {p_count} payments, {al_count} logs cleared.")
+    return {
+        "status": "ok",
+        "message": f"Cleared {s_count} students, {fr_count} fee records, and {p_count} payments. System is now fresh for new data.",
+    }
+
