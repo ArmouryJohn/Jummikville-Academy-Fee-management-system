@@ -115,6 +115,33 @@ def on_startup():
     _seed_admin_user()
     _seed_bursar_user()   # seeds only when BURSAR_EMAIL is set in env
     _seed_fee_categories()
+    _auto_clean_demo_data()
+
+
+def _auto_clean_demo_data():
+    """
+    If demo students (e.g. Emmanuel Okon, Grace Udoh, David Essien) exist from the
+    legacy seed, wipe the demo data once so the live app starts completely clean and fresh.
+    Real data added by staff is never touched because this only fires if the known
+    demo student names are detected.
+    """
+    db = SessionLocal()
+    try:
+        demo_names = ["Emmanuel Okon", "Grace Udoh", "David Essien"]
+        has_demo = db.query(Student).filter(Student.student_name.in_(demo_names)).first()
+        if has_demo:
+            logger.info("Found legacy sample/demo students in database — clearing demo data...")
+            db.query(Payment).delete(synchronize_session=False)
+            db.query(FeeRecord).delete(synchronize_session=False)
+            db.query(Student).delete(synchronize_session=False)
+            db.query(ActivityLog).delete(synchronize_session=False)
+            db.commit()
+            logger.info("Demo data cleared successfully. Database is now clean and fresh!")
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"Demo data cleanup check skipped: {e}")
+    finally:
+        db.close()
 
 
 # The eight fee categories the school starts with. Staff can add more from the
