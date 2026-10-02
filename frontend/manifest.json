@@ -11,12 +11,6 @@
   "lang": "en",
   "icons": [
     {
-      "src": "/assets/images/icon-192.jpg",
-      "sizes": "192x192",
-      "type": "image/jpeg",
-      "purpose": "any maskable"
-    },
-    {
       "src": "/assets/images/icon-512.jpg",
       "sizes": "512x512",
       "type": "image/jpeg",
@@ -24,17 +18,11 @@
     }
   ],
   "categories": ["education", "finance", "productivity"],
-  "screenshots": [],
   "shortcuts": [
     {
       "name": "Dashboard",
-      "url": "/?page=dashboard",
+      "url": "/",
       "description": "Open the fee management dashboard"
-    },
-    {
-      "name": "Students",
-      "url": "/?page=students",
-      "description": "View and manage students"
     }
   ]
 }
