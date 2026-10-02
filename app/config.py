@@ -107,10 +107,17 @@ class Settings(BaseSettings):
         default="development",
         description="'development' or 'production'"
     )
+    # In production, CORS is locked to this origin only. Set ALLOWED_ORIGIN in
+    # Render env vars to your Render app URL (e.g. https://jummikville.onrender.com).
+    allowed_origin: str = Field(
+        default="https://jummikville-fee-system.onrender.com",
+        description="Allowed CORS origin in production (your Render app URL).",
+    )
 
     @property
     def is_production(self) -> bool:
         return self.app_env.lower() == "production"
+
 
     @property
     def twilio_whatsapp_from(self) -> str:

@@ -25,6 +25,8 @@ from fastapi.staticfiles import StaticFiles
 from app.database import engine, Base, SessionLocal
 from app.config import settings
 from app.constants import SECTION_CLASSES
+from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
 
 # Import all models so SQLAlchemy knows about them
 from app.models import School, Student, FeeCategory, Term, FeeType, FeeRecord, Payment, ActivityLog, User, WebhookEvent  # noqa: F401
@@ -50,6 +52,9 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------
 # Create the FastAPI app
 # --------------------------------------------------------------------------
+# In production we hide the interactive docs (Swagger UI / ReDoc) so attackers
+# can't use them to explore API endpoints. Developers can still enable them
+# locally by setting APP_ENV=development.
 app = FastAPI(
     title="Jummikville Fee Management System",
     description=(
@@ -57,24 +62,36 @@ app = FastAPI(
         "for Jummikville Academy, powered by CAR Hub."
     ),
     version="1.0.0",
-    docs_url="/docs",      # Swagger UI at /docs
-    redoc_url="/redoc",    # ReDoc at /redoc
+    docs_url=None if settings.is_production else "/docs",
+    redoc_url=None if settings.is_production else "/redoc",
+    openapi_url=None if settings.is_production else "/openapi.json",
 )
 
 
 # --------------------------------------------------------------------------
+# Security middleware (register FIRST — outermost layer)
+# --------------------------------------------------------------------------
+# Middleware is applied in reverse registration order in Starlette/FastAPI.
+# Register security headers first so they wrap everything, including CORS.
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
+
+# --------------------------------------------------------------------------
 # CORS
 # --------------------------------------------------------------------------
-# The frontend is served by this same app (see the static mount at the bottom),
-# so same-origin requests work without CORS. But allowing all origins in
-# development means you can ALSO open the HTML file directly, or point a
-# separate dev server at this API, without hitting CORS errors while learning.
+# In production: only our own Render domain is allowed.
+# In development: any origin can call the API (handy for local testing).
+_allowed_origins = (
+    ["*"]
+    if not settings.is_production
+    else [settings.allowed_origin]          # set ALLOWED_ORIGIN in Render env
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if not settings.is_production else [],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
 
 
