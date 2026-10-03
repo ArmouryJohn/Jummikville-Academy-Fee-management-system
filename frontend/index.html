@@ -1138,15 +1138,19 @@
                 Reference: <span x-text="linkResult?.reference"></span>
               </p>
 
-              <div class="mt-6 flex gap-3">
+              <div class="mt-6 flex flex-wrap gap-2.5">
                 <button @click="copyPayLink()"
-                  class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-                  <span x-show="!linkCopied">Copy link</span>
-                  <span x-show="linkCopied" x-cloak class="text-brand-700">Copied!</span>
+                  class="flex-1 min-w-[100px] rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                  <span x-show="!linkCopied">📋 Copy link</span>
+                  <span x-show="linkCopied" x-cloak class="text-emerald-600 font-bold">✓ Copied!</span>
                 </button>
+                <a x-show="linkParentPhone" :href="getWhatsAppShareUrl()" target="_blank" rel="noopener"
+                  class="flex-1 min-w-[130px] rounded-xl bg-emerald-600 py-2.5 text-center text-sm font-semibold text-white hover:bg-emerald-700">
+                  💬 WhatsApp
+                </a>
                 <a :href="linkResult?.authorization_url" target="_blank" rel="noopener"
-                  class="flex-1 rounded-xl bg-brand-600 py-2.5 text-center text-sm font-semibold text-white hover:bg-brand-700">
-                  Open link
+                  class="flex-1 min-w-[100px] rounded-xl bg-brand-600 py-2.5 text-center text-sm font-semibold text-white hover:bg-brand-700">
+                  Open link ↗
                 </a>
               </div>
               <button @click="closePayLink()"
@@ -1306,7 +1310,7 @@
                   class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
               </div>
               <div>
-                <label class="mb-1 block text-sm font-medium text-slate-700">Parent email</label>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Parent email <span class="text-xs text-slate-400 font-normal">(optional)</span></label>
                 <input x-model="editForm.parent_email" type="email"
                   class="w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
               </div>

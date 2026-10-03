@@ -39,6 +39,11 @@ def _naira(amount_kobo: int) -> str:
     return f"NGN {amount_kobo / 100:,.2f}"
 
 
+from app.utils.formatting import font_safe_text
+
+_safe = font_safe_text
+
+
 def render_term_report_pdf(report: TermReportResponse) -> bytes:
     """Render the report to PDF bytes (returned inline; never written to disk)."""
     pdf = FPDF(format="A4")
@@ -73,19 +78,19 @@ def _header(pdf: FPDF, report: TermReportResponse) -> None:
             logger.warning(f"Could not render report logo: {exc}")
 
     pdf.set_font("Helvetica", "B", 17)
-    pdf.cell(0, 9, report.school_name, align="C", **_NL)
+    pdf.cell(0, 9, _safe(report.school_name), align="C", **_NL)
 
     pdf.set_font("Helvetica", "B", 13)
     pdf.cell(0, 8, "TERM REPORT", align="C", **_NL)
 
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 6, report.term_name, align="C", **_NL)
+    pdf.cell(0, 6, _safe(report.term_name), align="C", **_NL)
 
     # Dates line (if set) + generated timestamp.
     dates = _date_range(report)
     if dates:
         pdf.set_font("Helvetica", "", 9)
-        pdf.cell(0, 5, dates, align="C", **_NL)
+        pdf.cell(0, 5, _safe(dates), align="C", **_NL)
     pdf.set_font("Helvetica", "I", 8)
     pdf.set_text_color(120, 120, 120)
     gen = report.generated_at.strftime("%d %b %Y, %I:%M %p UTC")
@@ -135,7 +140,7 @@ def _category_table(pdf: FPDF, report: TermReportResponse) -> None:
     for c in report.categories:
         _table_row(
             pdf,
-            [c.category_name, _naira(c.expected_kobo), _naira(c.collected_kobo), _naira(c.remaining_kobo)],
+            [_safe(c.category_name), _naira(c.expected_kobo), _naira(c.collected_kobo), _naira(c.remaining_kobo)],
             [60, 40, 40, 40],
         )
     pdf.ln(2)
@@ -148,7 +153,7 @@ def _section_class_tables(pdf: FPDF, report: TermReportResponse) -> None:
         for s in report.sections:
             _table_row(
                 pdf,
-                [s.section, str(s.students), _naira(s.expected_kobo), _naira(s.collected_kobo), _naira(s.remaining_kobo)],
+                [_safe(s.section), str(s.students), _naira(s.expected_kobo), _naira(s.collected_kobo), _naira(s.remaining_kobo)],
                 [46, 20, 38, 38, 38],
             )
     else:
@@ -161,7 +166,7 @@ def _section_class_tables(pdf: FPDF, report: TermReportResponse) -> None:
         for c in report.classes:
             _table_row(
                 pdf,
-                [f"{c.class_name}", str(c.students), _naira(c.expected_kobo), _naira(c.collected_kobo), _naira(c.remaining_kobo)],
+                [_safe(c.class_name), str(c.students), _naira(c.expected_kobo), _naira(c.collected_kobo), _naira(c.remaining_kobo)],
                 [46, 20, 38, 38, 38],
             )
     else:
@@ -187,7 +192,7 @@ def _method_tables(pdf: FPDF, report: TermReportResponse) -> None:
     if report.methods:
         _table_header(pdf, ["Method", "Payments", "Amount"], [80, 40, 60])
         for m in report.methods:
-            _table_row(pdf, [m.label, str(m.count), _naira(m.amount_kobo)], [80, 40, 60])
+            _table_row(pdf, [_safe(m.label), str(m.count), _naira(m.amount_kobo)], [80, 40, 60])
     else:
         _empty(pdf, "No payments recorded for this term yet.")
     pdf.ln(2)
@@ -200,7 +205,7 @@ def _reminder_line(pdf: FPDF, report: TermReportResponse) -> None:
     pdf.cell(0, 6, f"Reminders sent: {r.reminders_sent}", **_NL)
     pdf.set_font("Helvetica", "I", 9)
     pdf.set_text_color(120, 120, 120)
-    pdf.multi_cell(0, 5, r.note, **_NL)
+    pdf.multi_cell(0, 5, _safe(r.note), **_NL)
     pdf.set_text_color(0, 0, 0)
     pdf.ln(2)
 
@@ -256,7 +261,7 @@ def _date_range(report: TermReportResponse) -> str:
     def fmt(d):
         return d.strftime("%d %b %Y")
     if report.term_start_date and report.term_end_date:
-        return f"{fmt(report.term_start_date)} – {fmt(report.term_end_date)}"
+        return f"{fmt(report.term_start_date)} - {fmt(report.term_end_date)}"
     if report.term_start_date:
         return f"From {fmt(report.term_start_date)}"
     if report.term_end_date:

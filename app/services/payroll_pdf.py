@@ -9,6 +9,9 @@ from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 
 from app.models import Payroll
+from app.utils.formatting import font_safe_text
+
+_safe = font_safe_text
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +80,7 @@ def generate_payslip_pdf(
         pdf.set_x(15)
 
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 7, school_name, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 7, _safe(school_name), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.set_x(42 if os.path.isfile(_LOGO_PATH) else 15)
     pdf.set_font("Helvetica", "", 9)
@@ -100,9 +103,9 @@ def generate_payslip_pdf(
 
     items = [
         ("Payslip Reference:", f"PAY-{payslip_id:05d}"),
-        ("Staff Name:", staff_name),
-        ("Academic Term:", term_name or "N/A"),
-        ("Payment Date:", payment_date),
+        ("Staff Name:", _safe(staff_name)),
+        ("Academic Term:", _safe(term_name or "N/A")),
+        ("Payment Date:", _safe(payment_date)),
         ("Amount Paid:", _naira(amount_kobo)),
     ]
 

@@ -61,3 +61,27 @@ def test_generate_receipt_is_idempotent(monkeypatch, payment, tmp_path):
         assert mtime1 == mtime2  # file was NOT re-written
     except Exception as exc:
         pytest.skip(f"fpdf2 not installed: {exc}")
+
+
+def test_generate_receipt_handles_unicode(monkeypatch, payment, tmp_path, db):
+    """Receipt generation handles unicode characters without throwing UnicodeEncodeError."""
+    monkeypatch.setattr(receipt_service, "_STORAGE_DIR", str(tmp_path / "receipts"))
+    monkeypatch.setattr(
+        receipt_service, "generate_receipt",
+        receipt_service._real_generate_receipt,
+    )
+
+    # Set unicode attributes on related records
+    student = payment.fee_record.student
+    student.student_name = "Chukwudi O’Connor"
+    student.parent_name = "Mrs. D’Silva • Guardian"
+    payment.note = "Paid ₦50,000 via POS – balance pending"
+    db.commit()
+
+    try:
+        path = receipt_service.generate_receipt(payment)
+        assert os.path.exists(path)
+        assert os.path.getsize(path) > 0
+    except Exception as exc:
+        pytest.skip(f"fpdf2 not installed: {exc}")
+

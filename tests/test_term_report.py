@@ -217,3 +217,19 @@ def test_pdf_renderer_returns_bytes(db, school, term, student, fee_record):
     assert isinstance(pdf, (bytes, bytearray))
     assert len(pdf) > 500
     assert pdf[:4] == b"%PDF"
+
+
+def test_pdf_renderer_handles_unicode_characters(db, school, term, student, fee_record):
+    from app.services.report_pdf import render_term_report_pdf
+
+    # Introduce unicode chars (naira symbol, curly apostrophe, en-dash, accent)
+    school.name = "Jummikville Academy — St. Jude’s"
+    term.name = "1st Term 2024–2025 • Primary"
+    db.commit()
+
+    report = build_term_report(db, school_id=school.id, term_id=term.id)
+    pdf = render_term_report_pdf(report)
+    assert isinstance(pdf, (bytes, bytearray))
+    assert len(pdf) > 500
+    assert pdf[:4] == b"%PDF"
+

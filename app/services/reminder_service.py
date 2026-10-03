@@ -91,8 +91,11 @@ async def send_reminders(
         if include_payment_link:
             try:
                 reference = generate_reference(record.id)
-                # Use parent email, or fallback to a placeholder
-                email = student.parent_email or f"{student.id}@{school.slug}.sch"
+                # Paystack requires an email; if parent email is not provided,
+                # fall back to a valid deterministic email so it never fails.
+                email = (student.parent_email or "").strip()
+                if not email or "@" not in email:
+                    email = f"parent.{student.id}@jummikville.com"
                 paystack_data = await initialize_transaction(
                     email=email,
                     amount_kobo=balance,

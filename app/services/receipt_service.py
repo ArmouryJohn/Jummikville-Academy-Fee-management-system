@@ -22,6 +22,9 @@ from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 
 from app.models import Payment
+from app.utils.formatting import font_safe_text
+
+_safe = font_safe_text
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +63,8 @@ def generate_receipt(payment: Payment) -> str:
     """
     path = receipt_path(payment.id)
 
-    # Idempotent: never regenerate an existing receipt.
-    if os.path.exists(path):
+    # Idempotent: never regenerate an existing receipt if valid
+    if os.path.exists(path) and os.path.getsize(path) > 0:
         return path
 
     os.makedirs(_STORAGE_DIR, exist_ok=True)
@@ -92,15 +95,15 @@ def generate_receipt(payment: Payment) -> str:
             logger.warning(f"Could not render receipt logo: {exc}")
 
     pdf.set_font("Helvetica", "B", 18)
-    pdf.cell(0, 10, school.name, align="C", **_NL)
+    pdf.cell(0, 10, _safe(school.name if school else "Jummikville Academy"), align="C", **_NL)
     pdf.set_font("Helvetica", "", 10)
-    if school.address:
+    if school and school.address:
         # Address can be long — wrap it instead of clipping to one line.
-        pdf.multi_cell(0, 5, school.address, align="C", **_NL)
-    if school.phone:
-        pdf.cell(0, 5, f"Tel: {school.phone}", align="C", **_NL)
-    if school.email:
-        pdf.cell(0, 5, f"Email: {school.email}", align="C", **_NL)
+        pdf.multi_cell(0, 5, _safe(school.address), align="C", **_NL)
+    if school and school.phone:
+        pdf.cell(0, 5, _safe(f"Tel: {school.phone}"), align="C", **_NL)
+    if school and school.email:
+        pdf.cell(0, 5, _safe(f"Email: {school.email}"), align="C", **_NL)
     pdf.ln(4)
 
     pdf.set_font("Helvetica", "B", 14)
@@ -111,7 +114,7 @@ def generate_receipt(payment: Payment) -> str:
     pdf.set_font("Helvetica", "", 11)
     paid_at = payment.paid_at.strftime("%d %b %Y, %I:%M %p") if payment.paid_at else ""
     pdf.cell(0, 7, f"Receipt No: JMK-RCP-{payment.id:06d}", **_NL)
-    pdf.cell(0, 7, f"Date: {paid_at}", **_NL)
+    pdf.cell(0, 7, _safe(f"Date: {paid_at}"), **_NL)
     pdf.ln(2)
 
     # ---- Body rows ----
@@ -119,7 +122,7 @@ def generate_receipt(payment: Payment) -> str:
         pdf.set_font("Helvetica", "B", 11)
         pdf.cell(60, 8, label)
         pdf.set_font("Helvetica", "", 11)
-        pdf.cell(0, 8, value, **_NL)
+        pdf.cell(0, 8, _safe(value), **_NL)
 
     row("Student:", student.student_name)
     if student.class_name:

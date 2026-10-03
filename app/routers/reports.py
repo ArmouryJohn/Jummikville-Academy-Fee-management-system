@@ -146,7 +146,14 @@ def export_term_report_pdf(
 ):
     """Download the term report as a printable PDF."""
     report = _build(db, term_id, school_id)
-    pdf_bytes = render_term_report_pdf(report)
+    try:
+        pdf_bytes = render_term_report_pdf(report)
+    except Exception as exc:
+        logger.error(f"PDF render failed for term {term_id}: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Could not generate PDF. Please try again or use the CSV export.",
+        )
     filename = f"term-report-{_slug(report.term_name)}.pdf"
     return StreamingResponse(
         iter([pdf_bytes]),

@@ -97,8 +97,15 @@ def download_receipt(payment_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Payment not found")
 
     path = receipt_service.receipt_path(payment.id)
-    if not os.path.exists(path):
-        path = receipt_service.generate_receipt(payment)
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        try:
+            path = receipt_service.generate_receipt(payment)
+        except Exception as exc:
+            logger.error(f"Receipt generation failed for payment {payment.id}: {exc}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Could not generate receipt PDF. Please try again.",
+            )
 
     return FileResponse(
         path,
@@ -143,8 +150,12 @@ async def initialize_payment(
     # Generate a reference that encodes the fee_record_id
     reference = generate_reference(fee_record.id)
 
-    # Use parent email, or create a placeholder
-    email = student.parent_email or f"{student.id}@jummikville.sch"
+    # Paystack requires an email address on initialize. If the parent doesn't have
+    # an email recorded, supply a standard deterministic placeholder
+    # so staff NEVER need to add a parent email just to generate a payment link.
+    email = (student.parent_email or "").strip()
+    if not email or "@" not in email:
+        email = f"parent.{student.id}@jummikville.com"
 
     try:
         paystack_data = await initialize_transaction(

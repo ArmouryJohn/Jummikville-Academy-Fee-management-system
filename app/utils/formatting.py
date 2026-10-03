@@ -78,3 +78,30 @@ def whatsapp_number(phone: str) -> str:
         whatsapp_number("+2348012345678") → "whatsapp:+2348012345678"
     """
     return f"whatsapp:{normalize_phone(phone)}"
+
+
+def font_safe_text(text: str | None) -> str:
+    """
+    Sanitize text for fpdf2 standard fonts (Helvetica/Times/Courier) which require latin-1.
+    Replaces common non-latin-1 unicode symbols with ASCII equivalents, then falls back
+    to replacing unrepresentable characters safely so PDF generation never raises UnicodeEncodeError.
+    """
+    if text is None:
+        return ""
+    text = str(text)
+    replacements = {
+        "\u20a6": "NGN ",  # ₦
+        "\u2018": "'",     # ‘
+        "\u2019": "'",     # ’
+        "\u201c": '"',     # “
+        "\u201d": '"',     # ”
+        "\u2013": "-",     # –
+        "\u2014": "-",     # —
+        "\u2026": "...",   # …
+        "\u2022": "*",     # •
+        "\u00a0": " ",     # Non-breaking space
+    }
+    for orig, rep in replacements.items():
+        text = text.replace(orig, rep)
+    return text.encode("latin-1", errors="replace").decode("latin-1")
+

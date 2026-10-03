@@ -533,6 +533,8 @@ document.addEventListener("alpine:init", () => {
     linkOpen: false,
     linkLoading: false,        // true while Paystack is generating the link
     linkStudentName: "",
+    linkParentPhone: "",
+    linkParentName: "",
     linkFeeLines: [],          // outstanding fee lines to pick from
     linkForm: { fee_record_id: "", amount_naira: "" },
     linkResult: null,          // { authorization_url, reference, amount_kobo } once generated
@@ -711,6 +713,8 @@ document.addEventListener("alpine:init", () => {
     // Paystack's webhook updates the balance automatically.
     openPayLink(student) {
       this.linkStudentName = student.student_name;
+      this.linkParentPhone = student.parent_phone || "";
+      this.linkParentName = student.parent_name || "";
       this.linkForm = { fee_record_id: "", amount_naira: "" };
       this.linkResult = null;
       this.linkCopied = false;
@@ -724,6 +728,8 @@ document.addEventListener("alpine:init", () => {
           if (this.linkFeeLines.length === 1) {
             this.linkForm.fee_record_id = this.linkFeeLines[0].fee_record_id;
           }
+          if (d.parent_phone) this.linkParentPhone = d.parent_phone;
+          if (d.parent_name) this.linkParentName = d.parent_name;
         })
         .catch((e) => Alpine.store("app").notify(e.message, "error"));
       this.linkOpen = true;
@@ -754,12 +760,26 @@ document.addEventListener("alpine:init", () => {
           method: "POST",
           body: JSON.stringify(body),
         });
-        Alpine.store("app").notify("Payment link generated & sent to parent via WhatsApp!");
+        Alpine.store("app").notify("Payment link generated successfully!");
       } catch (e) {
         Alpine.store("app").notify(e.message, "error");
       } finally {
         this.linkLoading = false;
       }
+    },
+
+    getWhatsAppShareUrl() {
+      if (!this.linkResult?.authorization_url) return "#";
+      const rawPhone = (this.linkParentPhone || "").replace(/[^0-9]/g, "");
+      let formattedPhone = rawPhone;
+      if (formattedPhone.startsWith("0")) {
+        formattedPhone = "234" + formattedPhone.slice(1);
+      } else if (!formattedPhone.startsWith("234") && formattedPhone.length === 10) {
+        formattedPhone = "234" + formattedPhone;
+      }
+      const parentGreeting = this.linkParentName ? `Dear ${this.linkParentName},` : "Dear Parent,";
+      const text = `${parentGreeting} here is the secure online payment link for ${this.linkStudentName}'s school fees: ${this.linkResult.authorization_url}`;
+      return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(text)}`;
     },
 
     async copyPayLink() {
