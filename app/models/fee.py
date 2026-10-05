@@ -1,19 +1,4 @@
-"""
-Fee models — FeeType (catalog) and FeeRecord (what each student owes).
-
-TWO TABLES, ONE CONCEPT:
-
-FeeType = "Tuition for Term 1 2025 costs ₦75,000"
-  → Defined once per school, shared across all students
-
-FeeRecord = "Emmanuel Okon owes ₦75,000 for Tuition Term 1, has paid ₦50,000"
-  → One per student per fee type, tracks individual progress
-
-THE GOLDEN RULE:
-balance = total_fees - amount_paid
-This is ALWAYS computed, never stored or manually entered.
-If amount_paid changes (via Paystack or cash), the balance updates automatically.
-"""
+"""Models for fee structures (FeeType) and student fee assignments (FeeRecord)."""
 
 from datetime import datetime, timezone
 
@@ -24,20 +9,7 @@ from app.database import Base
 
 
 class FeeType(Base):
-    """
-    A type of fee that a school charges.
-
-    WHAT CHANGED FROM THE OLD DESIGN:
-    Before: one FeeType = "Tuition - Term 1 2025"
-    Now: one FeeType = "Tuition Fee (category) · Primary (section) · Term 1 · ₦75,000"
-
-    The category_id links to the permanent FeeCategory (Tuition, Textbook, etc.),
-    and the section (Nursery/Primary/Secondary) lets different sections have
-    different amounts for the same category in the same term. This way:
-    - We can sum all Tuition collected vs all Textbook collected (GROUP BY category)
-    - We can see Primary's total vs Secondary's total (filter by section)
-    - Staff can set ₦50k tuition for Nursery and ₦75k for Primary in one term
-    """
+    """Fee type definition with category, section, term, and default amount."""
     __tablename__ = "fee_types"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -58,17 +30,13 @@ class FeeType(Base):
         comment="'Preschool', 'Primary', or 'Smart Skills High School' — required so different sections can have different amounts"
     )
 
-    # The term is now a real Term row. The legacy free-text `term` column has been
-    # dropped (see migrate_terms.py) — its value was backfilled into Term rows and
-    # this FK is the single source of truth. Nullable so ADD COLUMN works on the
-    # existing table before the backfill links each row.
     term_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("terms.id"), nullable=True,
-        comment="Which Term this fee type belongs to (source of truth)"
+        comment="Academic term id"
     )
     amount_kobo: Mapped[int] = mapped_column(
         Integer, nullable=False,
-        comment="Default amount in kobo (₦75,000 = 7500000)"
+        comment="Default amount in kobo"
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -87,25 +55,12 @@ class FeeType(Base):
     # ---------- Computed Properties ----------
     @property
     def name(self) -> str:
-        """
-        The display name of this fee type = its category's name.
-
-        Kept as a property (not a column) so there's one source of truth: the
-        category. Existing code and messages that referenced `fee_type.name`
-        (payment confirmations, reminders, dashboard) keep working unchanged.
-        """
+        """Display name of fee type from category."""
         return self.category.name if self.category else "Fee"
 
     @property
     def term(self) -> str:
-        """
-        The term NAME as a string — reads through to the linked Term row.
-
-        Kept as a property (not a column) so there's one source of truth: the
-        Term. Every existing caller that reads `fee_type.term` (reminders,
-        receipts, dashboard) keeps working unchanged. Empty string if a row is
-        somehow unlinked (should not happen after the backfill migration).
-        """
+        """Term name from linked Term record."""
         return self.term_obj.name if self.term_obj is not None else ""
 
     def __repr__(self) -> str:
@@ -113,14 +68,7 @@ class FeeType(Base):
 
 
 class FeeRecord(Base):
-    """
-    Tracks what a specific student owes for a specific fee type.
-
-    IMPORTANT: both amount_paid_kobo AND balance_kobo are COMPUTED PROPERTIES,
-    not database columns. amount_paid_kobo is the sum of this record's confirmed
-    Payment rows; balance_kobo is total_fees_kobo - amount_paid_kobo. This means
-    they can never be "wrong" — they're mathematically derived from the payments.
-    """
+    """Tracks what a student owes for a fee type, with derived paid amounts."""
     __tablename__ = "fee_records"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -132,19 +80,11 @@ class FeeRecord(Base):
         Integer, ForeignKey("fee_types.id"), nullable=False
     )
 
-    # What they owe. What they've PAID is NOT stored — it's computed from the
-    # Payment rows (see the amount_paid_kobo property below). Storing it as a
-    # column would be a cached aggregate that can silently drift from the actual
-    # payments; deriving it means the balance can never be "wrong".
     total_fees_kobo: Mapped[int] = mapped_column(
         Integer, nullable=False,
         comment="Total amount owed in kobo"
     )
 
-    # Status is derived from amounts, but stored for easy querying
-    # (it's much faster to query WHERE status='unpaid' than to compute).
-    # It's a denormalised index with a single writer (recalculate_status,
-    # called by the payment pipeline) — never a source of truth.
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="unpaid",
         comment="'unpaid', 'partial', 'paid', or 'overpaid'"

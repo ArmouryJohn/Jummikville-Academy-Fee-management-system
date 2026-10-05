@@ -1,6 +1,4 @@
-"""
-Task 1 — amount_paid_kobo / balance are DERIVED from Payment rows, never stored.
-"""
+"""Tests for derived balance calculations from payment records."""
 
 from app.models import Payment
 from app.services.payment_service import record_payment

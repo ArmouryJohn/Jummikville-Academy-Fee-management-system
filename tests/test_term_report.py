@@ -1,10 +1,5 @@
 """
-Part B — Term Report Export tests.
-
-Exercises app/services/report_service.build_term_report (the single source of the
-report's numbers) plus the CSV/PDF exports. In-memory SQLite, network stubbed by
-conftest. Money is summed in Python from Payment rows (never SQL), so these tests
-also guard that the derived totals stay correct after real payments are recorded.
+Tests for term reports: aggregate metrics, CSV export, and PDF rendering.
 """
 
 from datetime import datetime, date, timedelta, timezone

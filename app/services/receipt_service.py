@@ -1,19 +1,4 @@
-"""
-Receipt service — renders a one-page PDF receipt for a payment and stores it.
-
-DESIGN:
-- One receipt per Payment, generated ONCE. The file is written to
-  storage/receipts/receipt-{payment_id}.pdf (repo-root `storage/`, deliberately
-  OUTSIDE frontend/ so it is never served as a public static file — downloads go
-  through the auth-protected /api/v1/payments/{id}/receipt route).
-- Idempotent: if the file already exists we return its path without re-rendering,
-  so calling this again (e.g. a webhook retry) never produces a second receipt.
-
-WHY "NGN" NOT "₦":
-fpdf2's built-in Helvetica font is latin-1 encoded and cannot render the ₦ glyph
-(U+20A6). To keep receipts dependency-free (no bundled TTF), money is written as
-"NGN 75,000.00". The rest of the app still uses ₦ for on-screen/WhatsApp display.
-"""
+"""Receipt service — generates PDF payment receipts."""
 
 import logging
 import os

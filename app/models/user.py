@@ -1,15 +1,4 @@
-"""
-User model — represents a staff member who can log into the dashboard.
-
-DESIGN DECISIONS:
-- Passwords are hashed with PBKDF2-SHA256 (200k iterations, per-password salt).
-  Never stored in plain text.
-- role field allows multiple roles in the future ('admin', 'bursar', 'staff'),
-  but for now only 'admin' is seeded.
-- school_id links the user to a school (multi-tenant ready — each user sees
-  only their school's data).
-- is_active lets you disable an account without deleting it.
-"""
+"""User model for authenticated dashboard users."""
 
 from datetime import datetime, timezone
 

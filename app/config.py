@@ -1,16 +1,4 @@
-"""
-Application configuration — loads all settings from environment variables.
-
-HOW THIS WORKS:
-- Pydantic's BaseSettings reads from a .env file automatically
-- Every setting has a type annotation, so you get errors early if something's missing
-- To change any config (Twilio number, database, etc.), edit .env — not code
-
-WHY THIS PATTERN:
-- No secrets in source code
-- One place to see every configurable value
-- Different .env files for dev vs production
-"""
+"""Application settings loaded from environment variables and .env file."""
 
 from pydantic_settings import BaseSettings
 from pydantic import Field

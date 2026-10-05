@@ -1,11 +1,4 @@
-"""
-Models package — imports all models so SQLAlchemy can discover them.
-
-WHY THIS FILE:
-SQLAlchemy needs to "see" all your model classes before it can create
-tables or run migrations. Importing them all here means you can just do:
-    from app.models import School, Student, FeeType, FeeRecord, Payment
-"""
+"""Database models package."""
 
 from app.models.school import School
 from app.models.student import Student

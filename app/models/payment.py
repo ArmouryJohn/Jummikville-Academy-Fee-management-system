@@ -1,13 +1,4 @@
-"""
-Payment model — records every payment, regardless of method.
-
-DESIGN DECISIONS:
-- Every payment (Paystack, cash, POS, bank transfer) creates a Payment record
-- paystack_reference is only filled for online payments (used for idempotency)
-- recorded_by tracks which staff member recorded a cash payment
-- The payment links to a fee_record, which links to a student, which links
-  to a school — so you can always trace the full chain
-"""
+"""Payment model for recording student fee payments across all channels."""
 
 from datetime import datetime, timezone
 
@@ -40,22 +31,19 @@ class Payment(Base):
     # Paystack-specific (null for cash/POS payments)
     paystack_reference: Mapped[str | None] = mapped_column(
         String(200), unique=True, nullable=True,
-        comment="Paystack transaction reference — used to prevent duplicate recording"
+        comment="Paystack transaction reference"
     )
 
     # Staff-recorded payments (null for Paystack payments)
     recorded_by: Mapped[str | None] = mapped_column(
         String(200), nullable=True,
-        comment="Label of who recorded a manual payment (defaults to the admin's email)"
+        comment="Label of who recorded a manual payment"
     )
 
-    # The authenticated admin who recorded a manual payment — the AUDIT ACTOR.
-    # Null for Paystack/system-driven payments (no human recorded those). Together
-    # with amount_kobo, method, note, paid_at and created_at, this row is the full
-    # audit record for a manual payment: who, what, when, how much, how.
+    # Admin user who recorded manual payment (null for automated Paystack payments)
     recorded_by_user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=True,
-        comment="id of the admin who recorded a manual payment (audit trail)"
+        comment="Admin user id who recorded manual payment"
     )
 
     # Receipt PDF — generated once, then this URL is stable for re-download.

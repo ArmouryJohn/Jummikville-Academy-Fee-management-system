@@ -1,6 +1,4 @@
-"""
-Task 6 — term rollover: preserve prior term, carry unpaid balances, idempotent.
-"""
+"""Tests for academic term rollover, carrying forward unpaid balances, and idempotency."""
 
 from app.models import Term, FeeType, FeeRecord
 from app.services.payment_service import record_payment

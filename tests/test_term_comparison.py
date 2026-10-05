@@ -1,8 +1,5 @@
 """
-Part E — Term Comparison View tests.
-
-Exercises app/services/report_service.compare_terms and the /api/v1/reports/compare endpoint.
-In-memory SQLite, network stubbed by conftest.
+Tests for side-by-side comparison of academic terms.
 """
 
 import pytest

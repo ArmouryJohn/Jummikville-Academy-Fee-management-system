@@ -1,25 +1,4 @@
-"""
-Expense model — money the school spends (money going OUT).
-
-WHY THIS EXISTS:
-The system tracks money coming IN (fees/payments) in fine detail, but until now
-had no record of money going OUT — textbooks bought, a generator repaired, fuel,
-"Nepa Light" (electricity), events. Without that, a director can see what was
-collected but not what's actually left after running costs. An Expense row is one
-outgoing spend, by category, with who recorded it and when (the audit trail).
-
-LOAD-BEARING RULES:
-- amount_kobo is a REAL stored integer column (unlike FeeRecord.amount_paid_kobo,
-  which is a derived property). So expenses may be summed in SQL (func.sum) — see
-  expense_service.total_expenses_kobo.
-- Expenses NEVER touch student fee balances. They reduce the school's cash
-  position (Net Available = Collected − Expenses on the dashboard), nothing else.
-- term_id is nullable and defaulted to the current term at create time, so a term
-  can later compare its own expenses (Part E) while old rows without a term still
-  count toward the all-time total.
-- created_by_user_id mirrors Payment.recorded_by_user_id — the audit actor,
-  stamped from the authenticated admin. Nullable so a system/import row is allowed.
-"""
+"""Expense model for tracking school operational spending."""
 
 from datetime import datetime, timezone, date
 

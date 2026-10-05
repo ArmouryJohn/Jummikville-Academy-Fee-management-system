@@ -1,6 +1,4 @@
-"""
-Task 5 — receipt service: generated once, idempotent on repeat calls.
-"""
+"""Tests for payment receipt generation, idempotency, and formatting."""
 
 import os
 

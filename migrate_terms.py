@@ -1,33 +1,5 @@
 """
-One-time migration for the "Term is a real row, not a free-text string" change.
-
-RUN ONCE, with the server stopped, after pulling this code:
-    python migrate_terms.py
-
-BACKGROUND — WHAT CHANGED IN THE CODE:
-  Before: fee_types.term was a free-text VARCHAR column ("First Term 2025/2026").
-          A typo silently split one term's money into two buckets, and there was
-          nowhere to store term dates or a "current term" flag.
-  After:  There is a real `terms` table. FeeType.term_id points at it, and
-          FeeType.term is a read-only property returning term_obj.name. The old
-          free-text column is DROPPED — term_id is the single source of truth.
-
-WHY THE COLUMN MUST BE DROPPED (not left in place):
-  fee_types.term is NOT NULL with no default. New code inserts fee types with
-  only term_id, never the string. While the old column exists, every insert would
-  fail with 'NOT NULL constraint failed: fee_types.term' — the exact bug we hit
-  before with fee_records.amount_paid_kobo. So we backfill, then drop it.
-
-WHAT THIS SCRIPT DOES (all idempotent):
-  1. create_all() — creates the new `terms` table.
-  2. ADD COLUMN fee_types.term_id (nullable) if it's missing.
-  3. BACKFILL: for each distinct (school_id, term string) still in fee_types,
-     get-or-create a Term row and point every matching fee_type at it via term_id.
-  4. Ensure each school has exactly one current term (mark the most recent if none).
-  5. DROP the legacy fee_types.term column.
-
-IDEMPOTENT: a second run finds the term column already gone (step 3/5 skip) and the
-terms already present, so it does nothing.
+Database migration script to transition fee types from raw term strings to normalized term records.
 """
 
 import logging

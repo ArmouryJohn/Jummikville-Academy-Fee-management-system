@@ -1,24 +1,5 @@
 """
-Term rollover service — start a new term WITHOUT destroying the old one.
-
-WHAT "ROLLOVER" MEANS HERE:
-At the end of a term the school opens a new one (e.g. "Term 1 2025/2026" →
-"Term 2 2025/2026"). Rollover copies the fee CATALOG forward and gives every
-active student fresh fee records for the new term, so staff don't re-enter
-everything by hand.
-
-THE LOAD-BEARING RULES (why this service is explicit, not automatic):
-1. NOTHING in the old term is ever mutated or deleted. Prior-term FeeTypes and
-   FeeRecords — and their payment history — stay exactly as they were. History is
-   immutable.
-2. Unpaid balances are CARRIED FORWARD as arrears. The paid portion stays with the
-   old term (it happened there); only the still-owed remainder follows the student
-   into the new term, as one record under an "Outstanding (Prior Term)" fee type so
-   it stays visible and collectable.
-3. It is IDEMPOTENT and never runs on its own. Running it twice for the same
-   (from_term → to_term) does nothing the second time — students that already have
-   to_term records are skipped. There is no auto-rollover on a date; a human triggers
-   it via POST /api/v1/fees/terms/rollover.
+Term rollover service for managing academic term transitions, fee catalog cloning, and outstanding balance carry-forwards.
 """
 
 import logging

@@ -1,17 +1,5 @@
 """
-Dashboard endpoints — aggregated, read-only views built for the frontend.
-
-WHY A SEPARATE ROUTER:
-The Students and Fees routers already expose the raw data. But the frontend's
-Dashboard and Parents screens need that data pre-combined and pre-summed. Doing
-those joins/sums here (once, in Python) keeps the frontend simple and — crucially —
-means the balance/status logic still lives in ONE place (the FeeRecord model).
-We never recompute a balance here; we only add up the balances the model gives us.
-
-ENDPOINTS:
-- GET /api/v1/dashboard/summary          → the four summary cards + chart data
-- GET /api/v1/dashboard/students         → the Parents/Students list rows
-- GET /api/v1/dashboard/students/{id}    → one student's full record + history
+Dashboard API endpoints for financial overviews, student fee breakdowns, and school aggregates.
 """
 
 import logging
@@ -45,21 +33,7 @@ router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard"])
 
 def _aggregate_status(total_kobo: int, paid_kobo: int) -> str:
     """
-    Roll a student's many fee records up into ONE status for the list view.
-
-    Mirrors the same rule the FeeRecord model uses, just applied to the
-    student's combined totals:
-        no fees assigned yet   → 'no_fee'   (distinct from 'paid'!)
-        nothing paid           → 'unpaid'
-        overpaid               → 'overpaid'
-        paid covers everything → 'paid'
-        somewhere in between   → 'partial'
-
-    WHY 'no_fee' IS ITS OWN STATUS:
-    A student with no fees assigned owes ₦0 and has paid ₦0. Mathematically
-    that looks "fully paid", but it really means "we haven't set this student's
-    fees yet". Collapsing it into 'paid' hides students who still need fees
-    assigned. Keeping it separate makes that gap visible.
+    Roll a student's fee records into a consolidated status.
     """
     if total_kobo <= 0:
         return "no_fee"
@@ -255,13 +229,11 @@ def dashboard_summary(
             )
         )
 
-    # ---- Net funds (Part D): all-time whole-school money OUT ----
-    # Expenses reduce the school's cash position only; they never touch
-    # total_remaining or any student balance (computed above, left untouched).
+    # Net funds: total collected minus expenses
     expenses_kobo = total_expenses_kobo(db, school_id)
     net_available = total_collected - expenses_kobo
 
-    # ---- Part F — Dashboard Insights ----
+    # Dashboard insights calculations
     # 1. Top unpaid class (class with highest total remaining balance)
     class_remaining: dict[str, int] = {}
     for s in all_students:

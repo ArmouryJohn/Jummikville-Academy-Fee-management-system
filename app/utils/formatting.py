@@ -10,39 +10,15 @@ import re
 
 def kobo_to_naira(amount_kobo: int) -> str:
     """
-    Convert an amount in kobo to a formatted Naira string.
-
-    WHY KOBO:
-    Paystack works in kobo (the smallest unit of Nigerian Naira).
-    ₦5,000 = 500,000 kobo. By storing everything as integers in kobo,
-    we avoid floating-point rounding errors that could make balances
-    wrong by a few kobo.
-
-    Examples:
-        kobo_to_naira(500000)   → "₦5,000.00"
-        kobo_to_naira(7550)     → "₦75.50"
-        kobo_to_naira(0)        → "₦0.00"
-        kobo_to_naira(100)      → "₦1.00"
+    Convert an amount in kobo to formatted Naira (e.g. 500000 -> ₦5,000.00).
     """
     naira = amount_kobo / 100
-    # Format with commas for thousands and 2 decimal places
     return f"₦{naira:,.2f}"
 
 
 def normalize_phone(phone: str) -> str:
     """
-    Normalize a Nigerian phone number to E.164 format (+234...).
-
-    Parents might give their number in different formats:
-        "08012345678"   → "+2348012345678"
-        "8012345678"    → "+2348012345678"
-        "+2348012345678" → "+2348012345678"  (already correct)
-        "234 801 234 5678" → "+2348012345678"
-
-    WHY E.164:
-    Twilio requires phone numbers in E.164 format (+ country code + number).
-    This function handles the most common Nigerian phone number formats so
-    you don't have to worry about how parents type their numbers.
+    Normalize Nigerian phone number to E.164 format (+234...).
     """
     # Remove all spaces, dashes, and parentheses
     phone = re.sub(r"[\s\-\(\)]+", "", phone)

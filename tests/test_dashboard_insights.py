@@ -1,11 +1,5 @@
 """
-Tests for Part F — Dashboard Insights.
-
-Validates that GET /api/v1/dashboard/summary accurately returns:
-1. top_unpaid_class (class with highest total outstanding fee balance)
-2. most_common_payment_method (e.g. 'Paystack (Online)', 'Cash', etc.)
-3. biggest_expense_category (category with highest spend)
-4. collection_by_section (per-section collection percentage dict)
+Tests for dashboard summary insights and analytics.
 """
 
 import pytest

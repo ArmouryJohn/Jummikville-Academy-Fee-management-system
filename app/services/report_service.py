@@ -1,21 +1,5 @@
 """
-Report service — builds the term-scoped report numbers (Part B).
-
-This is the SINGLE source of truth for every figure in a term report, so the
-on-screen preview (JSON), the CSV export, and the PDF export can never disagree —
-they all render the same TermReportResponse produced here.
-
-MONEY IS SUMMED IN PYTHON, NEVER SQL — exactly like app/routers/dashboard.py —
-because FeeRecord.amount_paid_kobo is a computed property (sum of Payment rows),
-not a column. We eager-load the term's fee records and sum the model's computed
-properties (total_fees_kobo / amount_paid_kobo / remaining_kobo / overpaid_kobo).
-
-TERM SCOPING:
-- Fee money is scoped via FeeType.term_id (FeeType.term is a read-through property
-  and can't be used in a SQL filter).
-- Payment method split is scoped by joining Payment → FeeRecord → FeeType.term_id.
-- Reminder activity has no term link, so it's scoped by ActivityLog.created_at
-  against the term's start/end dates (all-time if the term has no dates).
+Report service for generating term financial reports, collection breakdowns, and term comparisons.
 """
 
 import logging
@@ -402,7 +386,7 @@ def compare_terms(
     db: Session, school_id: int, term_id_1: int, term_id_2: int
 ) -> TermComparisonResponse:
     """
-    Build a side-by-side comparison of two terms (Part E).
+    Build a side-by-side comparison of two terms.
     Raises ReportError if either term is invalid or belongs to another school.
     """
     school = db.query(School).filter(School.id == school_id).first()

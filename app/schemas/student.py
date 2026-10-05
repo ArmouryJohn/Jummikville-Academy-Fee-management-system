@@ -1,12 +1,4 @@
-"""
-Pydantic schemas for Student-related API requests and responses.
-
-WHY SEPARATE SCHEMAS FROM MODELS:
-- Models define how data is STORED (database columns)
-- Schemas define how data is SENT/RECEIVED (API requests and responses)
-- A create request might need fewer fields than a response
-- Schemas validate input before it ever reaches the database
-"""
+"""Pydantic schemas for Student-related API requests and responses."""
 
 from datetime import datetime
 from typing import Literal, get_args

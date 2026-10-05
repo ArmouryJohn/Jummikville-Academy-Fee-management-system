@@ -1,9 +1,5 @@
 """
-Part C — Expenses + Part D — Net Funds tests.
-
-Exercises app/services/expense_service (the single home of expense logic) and the
-Part D dashboard guarantee: expenses reduce Net Available WITHOUT touching any
-student's fee balance. In-memory SQLite, network stubbed by conftest.
+Tests for expense tracking and net funds calculations.
 """
 
 from datetime import date
@@ -162,13 +158,11 @@ def test_delete_unknown_raises(db, school, admin):
 
 
 # ---------------------------------------------------------------------------
-# Part D — net-funds invariant
+# Net funds calculations
 # ---------------------------------------------------------------------------
 def test_expense_never_touches_student_balances(db, school, term, admin, fee_record):
     """
-    The core Part D guarantee: after a payment AND an expense, Net Available =
-    Collected − Expenses, while total_remaining and the student's balance are
-    UNCHANGED by the expense.
+    Ensure expenses reduce available funds without altering individual student balances.
     """
     from app.routers.dashboard import dashboard_summary
 

@@ -1,12 +1,5 @@
 """
-Reminder service — finds parents who owe fees and sends them reminders.
-
-DESIGN DECISIONS:
-- Only sends to parents with balance > 0 (no point reminding someone who's paid)
-- Only sends to active students (don't bother parents of withdrawn students)
-- Can filter by class name or fee type (e.g., only remind JSS 2 parents)
-- Returns a summary of how many messages were sent and any failures
-- Generates a Paystack payment link for each parent so they can pay immediately
+Reminder service for querying outstanding fee balances and sending WhatsApp notifications.
 """
 
 import logging

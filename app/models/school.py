@@ -1,12 +1,4 @@
-"""
-School model — represents a school in the system.
-
-WHY MULTI-TENANT FROM DAY ONE:
-Even though we're starting with just Jummikville Academy, storing the school
-as a database record (not hardcoded) means adding another school later is
-just an INSERT, not a code change. Every student, fee, and payment links
-back to a school_id, so data is always isolated per school.
-"""
+"""School model representing institution details and configuration."""
 
 from datetime import datetime, timezone
 

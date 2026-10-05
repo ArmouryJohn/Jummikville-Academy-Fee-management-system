@@ -1,14 +1,5 @@
 """
-Expense endpoints (Part C) — record and review the school's outgoing spending.
-
-Expenses are money going OUT (fuel, repairs, textbooks, "Nepa Light", ...). They
-are visible to and recordable by ALL admins (no per-creator filtering), and every
-create stamps the acting admin as the audit actor. All business logic lives in
-expense_service; this router is just HTTP + validation.
-
-The whole router is auth-gated at include time in app/main.py (dependencies=_auth),
-so every endpoint here requires a valid session. The acting admin is available via
-Depends(get_current_user) and is recorded on create for the audit trail.
+Expense management endpoints for recording and tracking school operational costs.
 """
 
 import logging

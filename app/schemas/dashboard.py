@@ -88,7 +88,7 @@ class ClassSummary(BaseModel):
 
 
 class DashboardInsights(BaseModel):
-    """Part F — Small insights section for the Dashboard."""
+    """Aggregated insights for the dashboard overview."""
     top_unpaid_class: str | None = None
     top_unpaid_class_remaining_kobo: int = 0
     top_unpaid_class_remaining_display: str = "₦0.00"
@@ -107,16 +107,14 @@ class DashboardSummary(BaseModel):
     Top-of-dashboard numbers and the paid/unpaid breakdown for the chart.
 
     Returns whole-school figures plus a per-section list, so the frontend can
-    switch between "All", "Preschool", "Primary", and "Smart Skills High School"
-    without another round-trip. `sections` always includes an 'All' entry
-    (whole school).
+    switch between sections without extra round-trips.
     """
     school_id: int
     school_name: str
 
     total_students: int
 
-    # ---- Whole-school headline numbers (the four the user asked for) ----
+    # Whole-school headline numbers
     total_expected_kobo: int
     total_collected_kobo: int
     total_remaining_kobo: int
@@ -127,33 +125,22 @@ class DashboardSummary(BaseModel):
     total_remaining_display: str
     total_overpaid_display: str
 
-    # ---- Net funds (Part D): money OUT and what's left ----
-    # All-time, whole-school. Expenses reduce the school's cash position, NOT any
-    # student's fee balance — total_remaining above is deliberately untouched.
+    # Net funds: collections vs expenses
     total_expenses_kobo: int = 0
-    net_available_kobo: int = 0  # = total_collected_kobo - total_expenses_kobo
+    net_available_kobo: int = 0  # total_collected_kobo - total_expenses_kobo
     total_expenses_display: str = "₦0.00"
     net_available_display: str = "₦0.00"
 
-    # Collection rate as a whole-number percentage (0–100), for a progress bar
     collection_rate: int
 
-    # How many students fall into each bucket — drives the paid/unpaid visual
     students_paid: int
     students_partial: int
     students_unpaid: int
     students_overpaid: int = 0
-    # Students with no fees assigned yet — kept distinct from 'paid' so the
-    # gap is visible instead of masquerading as fully-settled.
     students_no_fee: int = 0
 
-    # Per-section headline numbers ('All' + each section that has data)
     sections: list[SectionSummary] = []
-
-    # Per-category collection breakdown (whole school)
     categories: list[CategoryBreakdown] = []
-
-    # Part F — Insights
     insights: DashboardInsights | None = None
 
 

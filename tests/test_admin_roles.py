@@ -1,11 +1,5 @@
 """
-Tests for Part G & H — Admin Roles & Account Management access control.
-
-Validates that:
-1. Staff Admin accounts cannot access /api/v1/users (403 Forbidden).
-2. Staff Admin accounts cannot delete students (403 Forbidden).
-3. Staff Admin accounts cannot access /api/v1/payroll (403 Forbidden).
-4. Director accounts have full access to all of the above.
+Tests for user role-based permissions and director-only operations.
 """
 
 import pytest

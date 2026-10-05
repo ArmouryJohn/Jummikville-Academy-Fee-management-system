@@ -1,14 +1,4 @@
-"""
-Tests for Director Staff Payroll & Management Module.
-
-Validates:
-1. Staff creation with bank details & classes taught.
-2. Term salary setup & payout recording (deriving unpaid/partial/paid status).
-3. Summary dashboard metrics & filter capabilities.
-4. Term comparison calculations across two terms.
-5. Soft deletion of staff with historical payroll preservation.
-6. PDF term backup report export.
-"""
+"""Tests for staff payroll management, payouts, and reports."""
 
 import pytest
 from fastapi import HTTPException

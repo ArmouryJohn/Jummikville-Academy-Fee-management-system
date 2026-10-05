@@ -1,12 +1,5 @@
 """
-Tests for Part I — Payroll (Director-Only Staff Salary Payments & Payslips).
-
-Validates that:
-1. Directors can record staff salary payments.
-2. Every payroll payment records processed_by_user_id (Audit Trail).
-3. Staff members receive WhatsApp salary notifications.
-4. Downloadable PDF payslips are generated.
-5. Staff Admins are blocked (403) from payroll endpoints.
+Tests for staff salary payments, payslip generation, and role access control.
 """
 
 import os

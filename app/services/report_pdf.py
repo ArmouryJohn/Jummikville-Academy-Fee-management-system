@@ -1,17 +1,5 @@
 """
-Term-report PDF renderer (Part B).
-
-Renders a TermReportResponse (built by app/services/report_service.py) to a
-multi-section A4 PDF for printing/sharing. Reuses the exact fpdf2 conventions from
-app/services/receipt_service.py:
-- FPDF (not a subclass), A4, XPos/YPos "next line" idiom.
-- Centred school logo, best-effort (a missing image never breaks rendering).
-- Money written as "NGN 75,000.00" — fpdf2's built-in Helvetica is latin-1 and
-  cannot render the ₦ glyph (U+20A6). The JSON/CSV/on-screen views keep using ₦.
-
-Unlike receipts (one file per payment, cached on disk), a report is generated
-fresh on every request and returned as bytes — the numbers change as money comes
-in, so caching a file would go stale.
+PDF generator for term financial summary reports.
 """
 
 import logging

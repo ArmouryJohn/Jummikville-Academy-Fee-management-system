@@ -1,11 +1,5 @@
 """
-User management endpoints (Part H) — Director-only invite & management of admin accounts.
-
-ENDPOINTS:
-- GET    /api/v1/users       → List admin accounts in school
-- POST   /api/v1/users       → Create/invite new admin account
-- PATCH  /api/v1/users/{id}  → Edit admin account
-- DELETE /api/v1/users/{id}  → Disable admin account
+User management endpoints for director-managed administrative accounts.
 """
 
 import logging

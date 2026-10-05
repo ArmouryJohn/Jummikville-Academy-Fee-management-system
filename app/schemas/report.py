@@ -1,14 +1,8 @@
 """
-Pydantic schemas for the Term Report export (Part B).
+Pydantic schemas for the Term Report export.
 
-A term report is a term-scoped snapshot of how money moved: the headline totals,
-paid/unpaid student counts, and breakdowns by fee category, by section/class, and
-by payment method (online vs manual), plus a reminder-activity summary.
-
-Following the same convention as schemas/dashboard.py, every money value is
-returned twice: `*_kobo` (raw integer for maths) and `*_display` ("₦75,000.00"
-ready-to-show string). The PDF renderer uses its own font-safe "NGN" formatting
-(fpdf2 can't render ₦) — see app/services/report_pdf.py.
+A term report is a term-scoped snapshot of financial metrics, collections,
+and breakdowns by fee category, section, class, and payment channel.
 """
 
 from datetime import datetime, date
@@ -126,7 +120,7 @@ class TermReportResponse(BaseModel):
 
 
 class TermComparisonItem(BaseModel):
-    """Headline metrics and breakdowns for one term in a side-by-side comparison (Part E)."""
+    """Headline metrics and breakdowns for one term in a side-by-side comparison."""
     term_id: int
     term_name: str
     term_start_date: date | None
@@ -159,7 +153,7 @@ class TermComparisonItem(BaseModel):
 
 
 class TermComparisonResponse(BaseModel):
-    """Side-by-side comparison of two academic terms (Part E)."""
+    """Side-by-side comparison of two academic terms."""
     school_id: int
     school_name: str
     term1: TermComparisonItem

@@ -1,14 +1,4 @@
-"""
-Student model — represents a student and their parent/guardian contact info.
-
-DESIGN DECISIONS:
-- We store the PARENT's contact info on the student record because they're
-  the ones who receive messages and make payments.
-- parent_email is needed for Paystack (they require an email to initialize
-  a transaction). If a parent doesn't have email, we can use a placeholder
-  like parentname@jummikville.sch (Paystack doesn't verify the email).
-- parent_phone is stored in E.164 format (+234...) for Twilio compatibility.
-"""
+"""Student model for student information and parent contact details."""
 
 from datetime import datetime, timezone
 

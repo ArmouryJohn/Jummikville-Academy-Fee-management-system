@@ -1,9 +1,5 @@
 """
-Part A — Terms: the "exactly one current term" invariant, get-or-create term
-resolution, and the FeeType.term read-through property.
-
-These exercise the load-bearing logic in term_service + the model directly, in
-the same style as the other suites (in-memory SQLite, no server).
+Tests for academic term management, active term tracking, and fee type term resolution.
 """
 
 from app.models import Term, FeeType, FeeCategory

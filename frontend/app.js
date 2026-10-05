@@ -1,19 +1,5 @@
 /*
- * app.js — the entire frontend logic for the Jummikville Fee Management System.
- *
- * WHY ONE FILE, NO BUILD STEP:
- * This app is intentionally a single static folder served by the FastAPI backend.
- * There's no npm, no bundler, no compile step — just HTML + this file + a CDN or
- * two. That makes it easy for someone new to frontends to read top-to-bottom and
- * maintain, and it means "deploying the frontend" is just "the backend serves a
- * folder". Interactivity is handled by Alpine.js (loaded in index.html); this
- * file provides the data layer and the Alpine component objects.
- *
- * HOW IT'S ORGANISED:
- *   1. CONFIG        — the one school id + API base
- *   2. api()         — a tiny fetch wrapper so every call looks the same
- *   3. helpers       — formatting, status colours, "time ago"
- *   4. Alpine stores/components — one per screen, referenced from index.html
+ * Frontend application logic for the Fee Management System.
  */
 
 // ---------------------------------------------------------------------------
@@ -1255,7 +1241,7 @@ document.addEventListener("alpine:init", () => {
     termId: null,
     report: null,
 
-    // Term Comparison state (Part E)
+    // Term Comparison state
     termId1: null,
     termId2: null,
     comparison: null,

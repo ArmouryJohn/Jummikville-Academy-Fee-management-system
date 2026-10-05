@@ -1,14 +1,5 @@
 """
-Term report endpoints (Part B) — the downloadable/printable term snapshot.
-
-Three views of the SAME numbers (all built by report_service.build_term_report,
-the single source of truth, so they can never disagree):
-- GET /api/v1/reports/terms/{term_id}            → JSON (on-screen preview)
-- GET /api/v1/reports/terms/{term_id}/export.csv → CSV  (spreadsheets/accounting)
-- GET /api/v1/reports/terms/{term_id}/export.pdf → PDF  (printing/sharing)
-
-The whole router is auth-gated at include time in app/main.py (dependencies=_auth),
-exactly like the dashboard — so every endpoint here requires a valid session.
+Term reporting endpoints for generating financial summaries, CSV exports, PDF downloads, and term comparisons.
 """
 
 import csv
@@ -169,7 +160,7 @@ def compare_terms_endpoint(
     school_id: int = Query(_DEFAULT_SCHOOL_ID),
     db: Session = Depends(get_db),
 ):
-    """Side-by-side comparison of two terms (Part E)."""
+    """Side-by-side comparison of two terms."""
     try:
         return compare_terms(db, school_id=school_id, term_id_1=term_id_1, term_id_2=term_id_2)
     except ReportError as exc:

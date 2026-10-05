@@ -1,23 +1,4 @@
-"""
-FeeCategory model — the permanent, school-wide list of fee kinds.
-
-WHY A SEPARATE TABLE (not a string on FeeType):
-The school wants to know, across everything, "how much have we collected for
-Textbooks vs Tuition?" That only works if a category is a real row every fee
-type points at — then we can GROUP BY category and sum. Storing the category
-as free text on each fee type would let "Textbook", "Textbooks", and "Text book"
-drift apart and break the totals.
-
-RELATIONSHIP CHAIN:
-    FeeCategory  (Tuition Fee)
-      └─ FeeType     (Tuition Fee · Primary · Term 1 · ₦75,000)
-           └─ FeeRecord  (Ada owes ₦75,000 for it, has paid ₦50,000)
-                └─ Payment (₦50,000 received via cash)
-
-Eight categories are seeded on startup (see app.main), but staff can add more
-from the Setup screen without any code change — that's the whole point of this
-being data, not an enum.
-"""
+"""FeeCategory model for grouping fee types (e.g. Tuition, Textbooks, Uniforms)."""
 
 from datetime import datetime, timezone
 

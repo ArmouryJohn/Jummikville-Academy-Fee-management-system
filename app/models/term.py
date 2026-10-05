@@ -1,23 +1,4 @@
-"""
-Term model — a real academic term (e.g. "First Term 2025/2026").
-
-WHY THIS EXISTS:
-A term used to be a free-text string living on every FeeType. That meant a typo
-("First Term 2025/26" vs "First Term 2025/2026") silently split one term's money
-into two buckets, and there was no place to store term dates or mark which term
-is "current". Every report, expense, and payroll record needs ONE trustworthy
-term to key off, so a term is now a first-class row.
-
-HOW IT RELATES TO FeeType:
-FeeType.term_id points here. FeeType.term is a read-only property that returns
-this term's name, so all existing code that reads `fee_type.term` (reminders,
-receipts, dashboard) keeps working unchanged.
-
-THE "CURRENT TERM" RULE:
-Exactly one term per school has is_current=True. It's toggled manually by an
-admin (POST /api/v1/terms/{id}/set-current), which clears the flag on every
-other term in the same school in the same transaction — never automatic by date.
-"""
+"""Academic term model (e.g. First Term 2025/2026)."""
 
 from datetime import datetime, timezone, date
 

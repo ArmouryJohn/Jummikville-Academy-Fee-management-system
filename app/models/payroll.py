@@ -1,15 +1,4 @@
-"""
-Payroll model — staff salary payment records (Director-only).
-
-WHY THIS EXISTS:
-Directors record staff salary payments per term. Staff members have NO login account
-to the system — they only receive an outbound WhatsApp notification and downloadable
-PDF payslip sent to their phone when paid.
-
-AUDITABILITY:
-Every payroll record stores `processed_by_user_id` pointing to the Director user who
-recorded the payment.
-"""
+"""Payroll model for recording staff salary payments and payslips."""
 
 from datetime import datetime, timezone, date
 

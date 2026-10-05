@@ -1,7 +1,4 @@
-"""
-Tasks 3 & 7 — manual payments record the method, actor, note, and an audit-log
-entry. Idempotency for Paystack references.
-"""
+"""Tests for manual payment recording, audit trail logging, and idempotency."""
 
 import pytest
 

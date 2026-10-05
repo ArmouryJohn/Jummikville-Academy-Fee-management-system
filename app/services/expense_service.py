@@ -1,16 +1,5 @@
 """
-Expense service (Part C) — the single place expense logic lives.
-
-Everything the app does with expenses flows through here: create/list/update/delete
-plus the total used by the dashboard's Net Available card (Part D). Keeping it in
-one module mirrors payment_service — routers stay thin, business rules stay testable.
-
-MONEY NOTE: expense.amount_kobo is a REAL stored integer column (not a derived
-property like FeeRecord's paid amount), so total_expenses_kobo may sum in SQL.
-
-AUDIT: create_expense stamps the acting admin (created_by_user_id) and writes an
-ActivityLog(action="expense_recorded") in the SAME transaction — the audit trail
-Part J builds on.
+Expense management service for handling operational expenditures and aggregates.
 """
 
 import logging
@@ -165,9 +154,7 @@ def total_expenses_kobo(
     term_id: int | None = None,
 ) -> int:
     """
-    Sum of all expense amounts (kobo) for the school — the number behind the
-    dashboard's Total Expenses / Net Available cards. amount_kobo is a real
-    column, so this is a plain SQL SUM. Optional term filter (for Part E).
+    Sum of all expense amounts in kobo for a school, with optional term filter.
     """
     q = db.query(func.coalesce(func.sum(Expense.amount_kobo), 0)).filter(
         Expense.school_id == school_id

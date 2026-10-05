@@ -1,23 +1,6 @@
 """
-Twilio WhatsApp service — sends payment confirmations and fee reminders.
-
-MESSAGE PHILOSOPHY:
-These messages go to real Nigerian parents. The tone should be:
-- Warm and respectful (not corporate or cold)
-- Acknowledging that school fees are a real stretch for many families
-- Grateful (not demanding)
-- Clear about numbers (amount paid, balance remaining)
-- Professional but human
-
-SANDBOX NOTE:
-Currently uses Twilio's WhatsApp Sandbox (whatsapp:+14155238886).
-When you get a verified WhatsApp Business number, change TWILIO_WHATSAPP_NUMBER
-in your .env file. That's it — no code changes needed.
-
-SANDBOX LIMITATION:
-The sandbox only delivers messages to numbers that have opted in by
-texting "join <keyword>" to the sandbox number. For production,
-this restriction goes away.
+WhatsApp notification service using Twilio.
+Handles payment receipts, fee reminders, payment links, and payroll alerts.
 """
 
 import logging
@@ -32,22 +15,14 @@ logger = logging.getLogger(__name__)
 
 
 def _get_twilio_client() -> Client:
-    """Create a Twilio client. Separated for easy mocking in tests."""
+    """Initialize Twilio client instance."""
     return Client(settings.twilio_account_sid, settings.twilio_auth_token)
 
 
 def send_whatsapp_message(to_phone: str, body: str) -> str | None:
     """
     Send a WhatsApp message via Twilio.
-
-    Args:
-        to_phone: Recipient's phone number (any Nigerian format — will be normalized)
-        body: The message text
-
-    Returns:
-        The Twilio message SID if successful, None if failed
-
-    NOTE: In sandbox mode, the recipient must have opted in first.
+    Returns message SID if successful, None otherwise.
     """
     try:
         client = _get_twilio_client()

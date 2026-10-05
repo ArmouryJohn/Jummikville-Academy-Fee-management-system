@@ -441,9 +441,7 @@
               </div>
             </div>
 
-            <!-- Net funds (Part D): money OUT and what's actually left.
-                 All-time, whole-school. Expenses reduce the school's cash
-                 position — they NEVER change any student's fee balance. -->
+            <!-- Net funds: expenses and net available -->
             <div class="tilt-scene reveal-on-switch mt-4 grid gap-4 sm:grid-cols-2">
               <div class="tilt-card grad-card rounded-2xl bg-white p-5 shadow-sm">
                 <p class="text-sm text-slate-500">Total Expenses</p>
@@ -457,7 +455,7 @@
               </div>
             </div>
 
-            <!-- Part F: Dashboard Insights -->
+            <!-- Dashboard Insights -->
             <div x-show="summary.insights" x-cloak class="mt-6">
               <div class="mb-3 flex items-center gap-2">
                 <span class="text-base">💡</span>
@@ -1078,7 +1076,7 @@
               <button @click="closePayLink()" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">✕</button>
             </div>
 
-            <!-- Step 1: pick the fee + amount (hidden once a link is generated) -->
+            <!-- Fee and amount selection -->
             <div x-show="!linkResult">
               <p class="mb-4 text-sm text-slate-500">
                 Generate a Paystack checkout link for
@@ -1123,7 +1121,7 @@
               </div>
             </div>
 
-            <!-- Step 2: the generated link -->
+            <!-- Generated link display -->
             <div x-show="linkResult" x-cloak>
               <p class="mb-4 text-sm text-slate-500">
                 Payment link for

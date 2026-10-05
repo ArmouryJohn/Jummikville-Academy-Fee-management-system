@@ -1,19 +1,5 @@
 """
-Security helpers — password hashing and session (JWT) tokens.
-
-TWO RESPONSIBILITIES:
-1. Passwords: hash on the way in, verify on login. We use PBKDF2-SHA256 from
-   Python's standard library (hashlib) — no external crypto dependency needed.
-   Each password gets its own random salt, so identical passwords hash
-   differently and rainbow-table attacks don't work.
-
-2. Sessions: after a successful login we issue a JWT (JSON Web Token) — a signed
-   string that proves "this user logged in". It's signed with our secret key, so
-   nobody can forge or tamper with it. It carries an expiry, which is how the
-   idle-timeout works.
-
-WHY NOT bcrypt/passlib: PBKDF2 is FIPS-approved, built into Python, and has no
-compiled-dependency headaches. For a school app it's more than strong enough.
+Password hashing and JWT session token utilities.
 """
 
 import hashlib
@@ -25,8 +11,6 @@ import jwt
 
 from app.config import settings
 
-# PBKDF2 parameters. 200k iterations is a sensible 2025 default — high enough to
-# slow brute-force attacks, low enough to not delay logins noticeably.
 _PBKDF2_ALGORITHM = "sha256"
 _PBKDF2_ITERATIONS = 200_000
 _SALT_BYTES = 16

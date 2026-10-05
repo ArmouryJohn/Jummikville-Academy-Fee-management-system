@@ -1,12 +1,4 @@
-"""
-Pydantic schemas for Expense API requests and responses (Part C).
-
-An Expense is one outgoing spend — money the school pays out, bucketed by a fixed
-category (EXPENSE_CATEGORIES). Money is integer kobo, echoed as a twin
-amount_kobo / amount_display pair like everywhere else in the app. The response
-also carries the recorder's email and the term name (read-through) so the UI can
-show "who / when / which term" without extra lookups.
-"""
+"""Pydantic schemas for Expense API requests and responses."""
 
 from datetime import datetime, date
 

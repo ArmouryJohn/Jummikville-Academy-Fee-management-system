@@ -1,17 +1,5 @@
 """
-Paystack webhook endpoint — the most security-critical route in the system.
-
-HOW THIS WORKS:
-1. Parent pays via a Paystack link (which we generated earlier)
-2. Paystack's servers send a POST to this endpoint with payment details
-3. We verify the signature to prove it's really from Paystack
-4. We extract the reference, find the matching fee record, record the payment
-5. The payment pipeline sends a WhatsApp confirmation automatically
-
-SECURITY LAYERS:
-- HMAC-SHA512 signature verification (rejects forged requests)
-- Idempotency check (prevents double-crediting from webhook retries)
-- Raw body reading (signature is computed against raw bytes, not parsed JSON)
+Paystack webhook handler for processing incoming payment events.
 """
 
 import json

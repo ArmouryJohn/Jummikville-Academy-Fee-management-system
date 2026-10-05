@@ -1,18 +1,4 @@
-"""
-WebhookEvent model — an audit log of every payment-provider webhook we receive.
-
-WHY THIS EXISTS:
-Online money (Paystack) arrives via webhooks that our server processes on its own,
-with no human in the loop. If we only ever recorded the resulting Payment, we'd have
-no trail of what the provider actually sent, whether the signature checked out, or why
-an event was skipped. This table stores the RAW event for every delivery — genuine,
-duplicate, forged, or unrecognised — so online payments are as auditable as manual ones.
-
-ONE ROW PER DELIVERY:
-Paystack retries webhooks, so the same reference can arrive several times. Each delivery
-gets its own row (this is the audit log). Idempotent CREDITING is enforced elsewhere, by
-the unique paystack_reference on Payment — not here.
-"""
+"""WebhookEvent model for logging incoming payment provider webhook deliveries."""
 
 from datetime import datetime, timezone
 

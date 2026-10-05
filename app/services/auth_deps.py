@@ -1,20 +1,5 @@
 """
-Auth dependencies — the gate that protects data endpoints.
-
-HOW A PROTECTED REQUEST FLOWS:
-1. Browser sends its session cookie automatically (it's httpOnly, set at login).
-2. get_current_user reads that cookie, verifies the JWT signature + expiry.
-3. If valid, it loads the User from the DB and — crucially — re-issues the
-   cookie with a fresh expiry. This is the "sliding session": every request
-   you make pushes the idle-timeout further out, so active users never get
-   logged out mid-work, but 30 minutes of inactivity ends the session.
-4. If the cookie is missing/expired/invalid, it raises 401 and the frontend
-   bounces the user to the login screen.
-
-WHY A COOKIE (not an Authorization header):
-The token lives in an httpOnly cookie, so JavaScript literally cannot read it.
-That means an XSS bug can't steal the session token. The browser attaches it
-automatically on same-origin requests, which is exactly our setup.
+Authentication dependencies and session cookie management.
 """
 
 import logging
@@ -29,20 +14,12 @@ from app.services.security import decode_session_token, create_session_token
 
 logger = logging.getLogger(__name__)
 
-# The name of the cookie that holds the session token.
 SESSION_COOKIE_NAME = "jummikville_session"
 
 
 def _set_session_cookie(response: Response, token: str) -> None:
     """
-    Write the session token into an httpOnly cookie on the response.
-
-    Flags explained:
-    - httponly=True  → JavaScript can't read it (XSS protection)
-    - samesite="lax" → cookie isn't sent on cross-site POSTs (CSRF mitigation)
-    - secure=<prod>  → only sent over HTTPS in production (in dev we allow HTTP
-                       so localhost works without certificates)
-    - max_age        → browser drops the cookie after the idle window too
+    Write the session token into an httpOnly cookie with sliding expiration.
     """
     response.set_cookie(
         key=SESSION_COOKIE_NAME,

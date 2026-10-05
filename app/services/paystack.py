@@ -1,22 +1,5 @@
 """
-Paystack service — webhook signature verification and transaction initialization.
-
-SECURITY:
-This is the most security-critical file in the whole system. The webhook endpoint
-is publicly accessible (Paystack needs to reach it), so we MUST verify that
-incoming webhooks actually came from Paystack, not from an attacker trying to
-fake a "payment received" event.
-
-HOW WEBHOOK VERIFICATION WORKS:
-1. Paystack signs every webhook with your secret key using HMAC-SHA512
-2. The signature is sent in the 'x-paystack-signature' header
-3. We compute our own HMAC-SHA512 of the raw request body using our secret key
-4. If the two match, the webhook is genuine; if not, it's fake/tampered
-
-WHY HMAC AND NOT JUST CHECKING THE SECRET KEY:
-HMAC proves two things at once:
-- The sender has the secret key (authentication)
-- The request body wasn't modified in transit (integrity)
+Paystack integration service for transaction initialization and webhook verification.
 """
 
 import hashlib
@@ -33,37 +16,22 @@ logger = logging.getLogger(__name__)
 
 def verify_webhook_signature(raw_body: bytes, signature: str | None) -> bool:
     """
-    Verify that a Paystack webhook request is genuine.
-
-    Args:
-        raw_body: The raw bytes of the request body (NOT parsed JSON — the raw bytes
-                  matter because even a tiny difference in whitespace changes the hash)
-        signature: The value of the 'x-paystack-signature' header
-
-    Returns:
-        True if the signature is valid, False otherwise
-
-    SECURITY DETAILS:
-    - Uses hmac.compare_digest() instead of == to prevent timing attacks
-      (an attacker can't figure out the right signature by measuring response times)
-    - Uses HMAC-SHA512 because that's what Paystack uses
+    Validate Paystack HMAC-SHA512 webhook signature against the raw payload.
     """
     if not signature:
         logger.warning("Webhook received with no signature header")
         return False
 
-    # Compute what the signature SHOULD be
     expected_signature = hmac.new(
         key=settings.paystack_secret_key.encode("utf-8"),
         msg=raw_body,
         digestmod=hashlib.sha512,
     ).hexdigest()
 
-    # Timing-safe comparison
     is_valid = hmac.compare_digest(expected_signature, signature)
 
     if not is_valid:
-        logger.warning("Webhook signature verification FAILED — possible forgery attempt")
+        logger.warning("Webhook signature verification failed")
 
     return is_valid
 
@@ -145,24 +113,7 @@ async def initialize_transaction(
 
 async def verify_transaction(reference: str) -> dict:
     """
-    Ask Paystack to confirm a transaction by reference (server-to-server).
-
-    The webhook body tells us what Paystack CLAIMS was paid, but the only
-    authoritative source is Paystack's own API. Before we credit money we call
-    this to re-confirm the transaction succeeded and how much was actually paid —
-    so a replayed or tampered body (even one that somehow passed signature check)
-    can't credit an amount Paystack never received.
-
-    Args:
-        reference: Our transaction reference (e.g. "JMK-42-1706547200")
-
-    Returns:
-        The `data` object from Paystack's verify response, which includes
-        `status` ('success'/'failed'/...) and `amount` (in kobo).
-
-    Raises:
-        httpx.HTTPStatusError: If Paystack returns a non-200 response
-        ValueError: If Paystack reports the verify call itself failed
+    Verify transaction status directly with Paystack API.
     """
     url = f"https://api.paystack.co/transaction/verify/{reference}"
     headers = {
@@ -185,15 +136,7 @@ async def verify_transaction(reference: str) -> dict:
 
 def generate_reference(fee_record_id: int) -> str:
     """
-    Generate a unique Paystack reference that encodes the fee_record_id.
-
-    Format: JMK-{fee_record_id}-{timestamp}
-    Example: JMK-42-1706547200
-
-    WHY THIS FORMAT:
-    - JMK prefix identifies it as our transaction (useful in Paystack dashboard)
-    - fee_record_id lets us find the right record when the webhook fires
-    - Timestamp ensures uniqueness (same student can pay multiple times)
+    Generate transaction reference containing the fee record id and timestamp.
     """
     timestamp = int(datetime.now(timezone.utc).timestamp())
     return f"JMK-{fee_record_id}-{timestamp}"

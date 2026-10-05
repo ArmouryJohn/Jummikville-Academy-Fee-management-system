@@ -1,7 +1,4 @@
-"""
-Task 2 — Paystack webhook security: HMAC signature verification, reference
-round-tripping, and the WebhookEvent audit row.
-"""
+"""Tests for Paystack webhook signature verification and payload handling."""
 
 import hashlib
 import hmac

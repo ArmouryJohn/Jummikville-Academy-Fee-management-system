@@ -1,18 +1,4 @@
-"""
-Payment service — the shared pipeline for ALL payment methods.
-
-THE GOLDEN RULE OF THIS FILE:
-Whether a payment comes from Paystack, cash, POS, or bank transfer,
-it goes through the SAME process:
-    1. Record the payment in the database
-    2. Update the fee record's amount_paid_kobo
-    3. Recalculate status (unpaid → partial → paid)
-    4. Send WhatsApp confirmation to the parent
-
-ONE CODE PATH = FEWER BUGS.
-If you fix a bug here, it's fixed for all payment methods.
-If you add a feature here (like logging or receipts), it works for all methods.
-"""
+"""Payment processing service for handling online and offline school fee payments."""
 
 import logging
 
@@ -38,30 +24,8 @@ def record_payment(
     note: str | None = None,
     send_confirmation: bool = True,
 ) -> Payment:
-    """
-    Record a payment and update the fee record balance.
-
-    This is THE payment processing function. Every payment method calls this.
-
-    Args:
-        db: Database session
-        fee_record_id: Which fee record to apply this payment to
-        amount_kobo: Payment amount in kobo
-        method: 'paystack', 'cash', 'pos', 'bank_transfer', or 'other'
-        paystack_reference: Paystack ref (for idempotency — only for Paystack payments)
-        recorded_by: Staff label (for cash/POS payments) — defaults to the admin's email
-        recorded_by_user_id: id of the authenticated admin who recorded a manual
-            payment (null for Paystack/system-initiated payments) — the audit actor
-        note: Optional note
-        send_confirmation: Whether to send a WhatsApp confirmation
-
-    Returns:
-        The created Payment object
-
-    Raises:
-        ValueError: If the fee record doesn't exist or the payment is invalid
-    """
-    # ---- Step 1: Load the fee record with all related data ----
+    """Record a payment and update fee record balance."""
+    # Load fee record and relationships
     fee_record = (
         db.query(FeeRecord)
         .options(
@@ -78,7 +42,7 @@ def record_payment(
     if amount_kobo <= 0:
         raise ValueError("Payment amount must be greater than zero")
 
-    # ---- Step 2: Check for duplicate Paystack payment (idempotency) ----
+    # Prevent duplicate recording for Paystack transactions
     if paystack_reference:
         existing = (
             db.query(Payment)
@@ -89,9 +53,9 @@ def record_payment(
             logger.info(
                 f"Duplicate Paystack payment skipped: ref={paystack_reference}"
             )
-            return existing  # Return the existing payment — don't double-credit
+            return existing
 
-    # ---- Step 3: Create the payment record ----
+    # Create payment record
     payment = Payment(
         fee_record_id=fee_record_id,
         amount_kobo=amount_kobo,
@@ -103,17 +67,11 @@ def record_payment(
     )
     db.add(payment)
 
-    # ---- Step 4: Attach the payment so the derived balance sees it ----
-    # amount_paid_kobo is a computed SUM of this record's Payment rows (see
-    # FeeRecord.amount_paid_kobo). We append the new payment to the in-session
-    # relationship so recalculate_status() — and every balance read below —
-    # counts it immediately, before the commit round-trips to the DB.
+    # Update in-memory relationship and recalculate status
     fee_record.payments.append(payment)
     fee_record.recalculate_status()
 
-    # ---- Step 4b: Record this in the activity feed ----
-    # Staged (not committed) here so it lands in the SAME transaction as the
-    # payment below — the feed entry and the payment succeed or fail together.
+    # Log payment activity
     student = fee_record.student
     method_label = {
         "cash": "cash",
@@ -122,8 +80,6 @@ def record_payment(
         "other": "other",
         "paystack": "Paystack",
     }.get(method, method)
-    # Who recorded it — the audit actor. For manual payments this is the staff
-    # label (the admin's email by default); Paystack payments are system-driven.
     actor = recorded_by or ("Paystack" if method == "paystack" else "system")
     log_activity(
         db=db,
@@ -137,7 +93,7 @@ def record_payment(
         ),
     )
 
-    # ---- Step 5: Commit to database ----
+    # Commit payment
     db.commit()
     db.refresh(payment)
     db.refresh(fee_record)
@@ -149,10 +105,7 @@ def record_payment(
         f"Status: {fee_record.status}"
     )
 
-    # ---- Step 5b: Generate the receipt PDF (once) and save its URL ----
-    # Best-effort, like the WhatsApp send below: the payment is already
-    # committed, so a receipt failure must never fail the payment. The URL is
-    # the protected download route, saved once so it's stable for re-download.
+    # Generate receipt PDF
     if not payment.receipt_url:
         try:
             receipt_service.generate_receipt(payment)
@@ -163,11 +116,7 @@ def record_payment(
             db.rollback()
             logger.error(f"Receipt generation failed (payment still recorded): {e}")
 
-    # ---- Step 6: Send WhatsApp confirmation ----
-    # The message we send depends on where this payment LEFT the fee record:
-    #   overpaid → tell them we'll refund the excess
-    #   paid     → celebrate completing the fees
-    #   otherwise (partial) → the standard "payment received, here's your balance"
+    # Send WhatsApp confirmation to parent
     if send_confirmation:
         try:
             fee_type = fee_record.fee_type
